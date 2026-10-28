@@ -3,6 +3,14 @@
 Type instead of using the mouse. TypeMouse lets you click and switch windows on macOS with only the keyboard.
 It is a personal replacement for [Homerow](https://www.homerow.app), with a separate window mode.
 
+**Click mode** puts a label on every clickable element. Type the label to click it.
+
+![Click mode: yellow labels on each button and link of a GitHub page in Chrome](docs/images/click-mode.png)
+
+**Window mode** lists your windows. Each app keeps the same letter, so you can switch by muscle memory.
+
+![Window mode: a list of windows, each with a one- or two-letter label](docs/images/window-mode.png)
+
 ## Modes
 
 | Hotkey | Mode | What it does |
