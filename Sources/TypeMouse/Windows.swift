@@ -32,7 +32,6 @@ final class WindowProvider {
         nc.addObserver(forName: NSWorkspace.didTerminateApplicationNotification, object: nil, queue: .main) { [weak self] n in
             guard let app = n.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication else { return }
             self?.observers[app.processIdentifier] = nil
-            AccessibilityActivator.forget(app.processIdentifier)
         }
         for app in NSWorkspace.shared.runningApplications where app.activationPolicy == .regular { observe(app) }
     }

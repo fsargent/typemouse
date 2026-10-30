@@ -25,6 +25,12 @@ enum Diagnostics {
 
         let config = ConfigStore.load()
         if args.contains("--webareas") { webAreas(app); return 0 }
+        if args.contains("--disable-enhanced") {
+            // Test aid: simulates another tool turning the flag off.
+            AXUIElementCreateApplication(app.processIdentifier).set("AXEnhancedUserInterface", kCFBooleanFalse)
+            print("AXEnhancedUserInterface turned off")
+            return 0
+        }
         var result = ElementProvider().collect(app: app, config: config)
         // A second scan shows the warm time (Chromium and Electron build their tree on the first request).
         let warm = ElementProvider().collect(app: app, config: config)

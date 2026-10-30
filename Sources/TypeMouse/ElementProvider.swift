@@ -73,7 +73,29 @@ final class ElementProvider {
 
     func collect(app: NSRunningApplication, config: Config) -> Result {
         let start = Date()
-        AccessibilityActivator.activate(app, enhanced: config.enhancedUserInterfaceApps.contains(app.bundleIdentifier ?? ""))
+        let enhanced = config.enhancedUserInterfaceApps.contains(app.bundleIdentifier ?? "")
+        AccessibilityActivator.activate(app, enhanced: enhanced)
+        var result = scan(app: app, start: start)
+        guard enhanced, !result.targets.contains(where: \.inWebArea) else { return result }
+
+        // The browser builds its page tree in the background after the flag turns on, and the flag
+        // can read as on before the tree exists. The tree also fills in over several scans, so stop
+        // when the page target count stops growing, or after 2 s.
+        var lastWebCount = 0
+        while Date().timeIntervalSince(start) < 2 {
+            usleep(150_000)
+            AccessibilityActivator.activate(app, enhanced: true)
+            result = scan(app: app, start: start)
+            let webCount = result.targets.filter(\.inWebArea).count
+            if webCount > 0 && webCount == lastWebCount { break }
+            lastWebCount = webCount
+        }
+        Log.info(String(format: "waited for page tree in %@: %d page targets after %.0f ms", app.localizedName ?? "?",
+                        lastWebCount, Date().timeIntervalSince(start) * 1000))
+        return result
+    }
+
+    private func scan(app: NSRunningApplication, start: Date) -> Result {
         found = []
         visited = 0
 

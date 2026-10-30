@@ -126,18 +126,17 @@ extension Geometry {
 /// http://dev.chromium.org/developers/design-documents/accessibility
 /// https://www.electronjs.org/docs/latest/tutorial/accessibility
 enum AccessibilityActivator {
-    private static var done = Set<pid_t>()
-    private static let lock = NSLock()
-
-    static func activate(_ app: NSRunningApplication, enhanced: Bool) {
-        let pid = app.processIdentifier
-        lock.lock()
-        let fresh = done.insert(pid).inserted
-        lock.unlock()
-        guard fresh else { return }
-        let el = AXUIElementCreateApplication(pid)
-        el.set("AXManualAccessibility", kCFBooleanTrue)
-        if enhanced { el.set("AXEnhancedUserInterface", kCFBooleanTrue) }
+    /// Turns the flags on when they are off. Other tools (window managers, for example) can
+    /// turn AXEnhancedUserInterface off again, so callers check before every scan.
+    /// Returns true when this call turned the enhanced flag on, so the app is still building its tree.
+    @discardableResult
+    static func activate(_ app: NSRunningApplication, enhanced: Bool) -> Bool {
+        let el = AXUIElementCreateApplication(app.processIdentifier)
+        if el.bool("AXManualAccessibility") != true { el.set("AXManualAccessibility", kCFBooleanTrue) }
+        guard enhanced, el.bool("AXEnhancedUserInterface") != true else { return false }
+        el.set("AXEnhancedUserInterface", kCFBooleanTrue)
+        Log.info("AXEnhancedUserInterface was off in \(app.localizedName ?? "?"), turned it on")
+        return true
     }
 
     /// Wakes every running app now, so the first scan does not find an empty tree.
@@ -145,18 +144,5 @@ enum AccessibilityActivator {
         for app in NSWorkspace.shared.runningApplications where app.activationPolicy == .regular {
             activate(app, enhanced: enhancedApps.contains(app.bundleIdentifier ?? ""))
         }
-    }
-
-    /// Lets a config change apply again to apps already woken.
-    static func reset() {
-        lock.lock()
-        done.removeAll()
-        lock.unlock()
-    }
-
-    static func forget(_ pid: pid_t) {
-        lock.lock()
-        done.remove(pid)
-        lock.unlock()
     }
 }

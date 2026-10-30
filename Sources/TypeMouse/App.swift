@@ -11,6 +11,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem?
     private var configWatcher: DispatchSourceFileSystemObject?
     private var permissionTimer: Timer?
+    private var flagTimer: Timer?
     private var loginMenuItem: NSMenuItem?
 
     func applicationDidFinishLaunching(_ note: Notification) {
@@ -29,6 +30,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         WindowProvider.shared.startTracking()
         AccessibilityActivator.activateAll(enhancedApps: config.enhancedUserInterfaceApps)
+        // Other tools can turn AXEnhancedUserInterface off. Turn it back on early, so the browser
+        // has rebuilt its page tree before the next hotkey press.
+        flagTimer = Timer.scheduledTimer(withTimeInterval: 3, repeats: true) { [weak self] _ in
+            guard let self, !self.hints.isActive, let front = NSWorkspace.shared.frontmostApplication,
+                  self.config.enhancedUserInterfaceApps.contains(front.bundleIdentifier ?? "") else { return }
+            AccessibilityActivator.activate(front, enhanced: true)
+        }
         NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didActivateApplicationNotification,
                                                           object: nil, queue: .main) { [weak self] n in
             guard let app = n.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication else { return }
@@ -159,7 +167,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self.hints.update(config: next)
             self.windows.update(config: next)
             self.registerHotkeys()
-            AccessibilityActivator.reset()
             AccessibilityActivator.activateAll(enhancedApps: next.enhancedUserInterfaceApps)
         }
         src.setCancelHandler { close(fd) }
