@@ -86,7 +86,26 @@ TypeMouse writes the defaults on first launch. Every key is optional.
 - `enhancedUserInterfaceApps`: apps that get the `AXEnhancedUserInterface` flag. Chromium browsers need it to show web page labels. The default lists Chrome, Brave, Edge, Arc, Vivaldi, and Opera. The flag can slow window moves by tools such as Rectangle or Raycast.
 - To find a bundle identifier, run `osascript -e 'id of app "Slack"'`.
 
-## Build and install
+## Download
+
+Each release on the [Releases page](https://github.com/fsargent/typemouse/releases) has a universal `TypeMouse-<version>.zip`.
+
+1. Download and unzip it.
+2. Move `TypeMouse.app` to `/Applications` or `~/Applications`.
+3. Remove the download quarantine: `xattr -dr com.apple.quarantine /Applications/TypeMouse.app`
+4. Open the app, then grant Accessibility permission when macOS asks.
+
+Release builds have an ad-hoc signature, not an Apple Developer ID.
+macOS sees each new version as a new app.
+After an update, remove TypeMouse from the Accessibility list and grant permission again.
+
+## Publish a release
+
+1. Push a version tag: `git tag v0.2.0 && git push origin v0.2.0`
+2. The `Release` workflow runs the tests and builds a universal app.
+3. The workflow publishes the zip and its SHA-256 checksum with generated release notes.
+
+## Build and install from source
 
 You do not need a paid Apple Developer account.
 
