@@ -1,6 +1,9 @@
-.PHONY: build test app cert run restart dump windows clean
+.PHONY: build test app cert icon run restart dump windows clean
 
+# Use full Xcode when installed (unit tests need XCTest). Otherwise use the Command Line Tools.
+ifneq ($(wildcard /Applications/Xcode.app),)
 export DEVELOPER_DIR ?= /Applications/Xcode.app/Contents/Developer
+endif
 APP := $(HOME)/Applications/TypeMouse.app
 OUT := $(HOME)/scratch/typemouse
 
@@ -12,6 +15,10 @@ test:
 
 cert:
 	scripts/make-cert.sh
+
+# Redraws Resources/AppIcon.icns and docs/images/icon.png.
+icon:
+	swift scripts/make-icon.swift
 
 app:
 	scripts/build-app.sh

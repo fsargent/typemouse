@@ -40,6 +40,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func startCapture(prompt: Bool) -> Bool {
+        if capture.isStarted { return true }
         guard AX.isTrusted(prompt: prompt) else { return false }
         let ok = capture.start()
         Log.info("key capture \(ok ? "ready" : "failed")")

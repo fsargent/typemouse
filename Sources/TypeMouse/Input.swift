@@ -15,6 +15,19 @@ struct KeyEvent {
     /// Hyper still held from the activation hotkey counts as no modifiers.
     var hyperHeld: Bool { shift && command && option && control }
 
+    /// Main thread only. Reads the character with no modifiers, so Shift+; is still ";".
+    /// Shift means right-click in click mode, so it must not change the character.
+    init(keyCode: Int64, flags: CGEventFlags) {
+        dispatchPrecondition(condition: .onQueue(.main))
+        self.keyCode = keyCode
+        let c = KeyTranslator.unmodifiedCharacter(UInt16(truncatingIfNeeded: keyCode)).lowercased()
+        char = c.count == 1 && c.unicodeScalars.first!.value >= 32 ? c : ""
+        shift = flags.contains(.maskShift)
+        command = flags.contains(.maskCommand)
+        option = flags.contains(.maskAlternate)
+        control = flags.contains(.maskControl)
+    }
+
     enum Special { case escape, enter, backspace, tab, up, down, space, other }
 
     var special: Special {
@@ -28,6 +41,23 @@ struct KeyEvent {
         case 49: return .space
         default: return .other
         }
+    }
+}
+
+/// Turns a virtual key code into the character of the current keyboard layout.
+enum KeyTranslator {
+    static func unmodifiedCharacter(_ keyCode: UInt16) -> String {
+        guard let source = TISCopyCurrentKeyboardLayoutInputSource()?.takeRetainedValue(),
+              let raw = TISGetInputSourceProperty(source, kTISPropertyUnicodeKeyLayoutData) else { return "" }
+        let data = Unmanaged<CFData>.fromOpaque(raw).takeUnretainedValue()
+        guard let bytes = CFDataGetBytePtr(data) else { return "" }
+        let layout = UnsafeRawPointer(bytes).assumingMemoryBound(to: UCKeyboardLayout.self)
+        var deadKeys: UInt32 = 0
+        var length = 0
+        var chars = [UniChar](repeating: 0, count: 4)
+        let status = UCKeyTranslate(layout, keyCode, UInt16(kUCKeyActionDown), 0, UInt32(LMGetKbdType()),
+                                    OptionBits(kUCKeyTranslateNoDeadKeysBit), &deadKeys, chars.count, &length, &chars)
+        return status == noErr ? String(utf16CodeUnits: chars, count: length) : ""
     }
 }
 
@@ -98,6 +128,8 @@ final class KeyCapture {
         return _active
     }
 
+    var isStarted: Bool { tap != nil }
+
     /// Fails until the app has Accessibility permission.
     func start() -> Bool {
         if tap != nil { return true }
@@ -133,16 +165,12 @@ final class KeyCapture {
         }
         guard active else { return Unmanaged.passUnretained(event) }
         if type == .keyDown {
+            // Only plain values cross threads. Text input source APIs must run on the main thread.
+            let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
             let flags = event.flags
-            // Read the key with no modifiers, so Shift+; is still ";". Shift means right-click here.
-            let plain = event.copy()
-            plain?.flags = []
-            let chars = plain.flatMap { NSEvent(cgEvent: $0)?.characters }?.lowercased() ?? ""
-            let key = KeyEvent(keyCode: event.getIntegerValueField(.keyboardEventKeycode),
-                               char: chars.count == 1 && chars.unicodeScalars.first!.value >= 32 ? chars : "",
-                               shift: flags.contains(.maskShift), command: flags.contains(.maskCommand),
-                               option: flags.contains(.maskAlternate), control: flags.contains(.maskControl))
-            DispatchQueue.main.async { [weak self] in self?.onKey?(key) }
+            DispatchQueue.main.async { [weak self] in
+                self?.onKey?(KeyEvent(keyCode: keyCode, flags: flags))
+            }
         }
         return nil
     }

@@ -8,6 +8,8 @@
 	<string>TypeMouse</string>
 	<key>CFBundleDisplayName</key>
 	<string>TypeMouse</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
 	<key>CFBundleExecutable</key>
 	<string>TypeMouse</string>
 	<key>CFBundlePackageType</key>

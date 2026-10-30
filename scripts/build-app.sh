@@ -15,8 +15,9 @@ fi
 swift build -c "$CONFIG"
 BIN="$(swift build -c "$CONFIG" --show-bin-path)/TypeMouse"
 
-mkdir -p "$APP/Contents/MacOS"
+mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
+cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 # Replace the binary in place. Keeping the same path keeps the Accessibility grant.
 cp "$BIN" "$APP/Contents/MacOS/TypeMouse"
 

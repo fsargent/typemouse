@@ -1,3 +1,5 @@
+<img src="docs/images/icon.png" width="128" alt="TypeMouse icon: a cursor with a yellow FJ hint label">
+
 # TypeMouse
 
 Type instead of using the mouse. TypeMouse lets you click and switch windows on macOS with only the keyboard.
