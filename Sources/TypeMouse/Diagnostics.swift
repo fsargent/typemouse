@@ -24,6 +24,7 @@ enum Diagnostics {
         guard let app else { print("app not found"); return 1 }
 
         let config = ConfigStore.load()
+        if args.contains("--webareas") { webAreas(app); return 0 }
         var result = ElementProvider().collect(app: app, config: config)
         // A second scan shows the warm time (Chromium and Electron build their tree on the first request).
         let warm = ElementProvider().collect(app: app, config: config)
@@ -38,6 +39,44 @@ enum Diagnostics {
                      app.localizedName ?? "?", result.targets.count, result.visited, result.duration * 1000,
                      warm.duration * 1000, warm.targets.count, result.menuOpen ? ", menu open" : ""))
         return 0
+    }
+
+    /// Shows the accessibility flags and every web area in the focused window, to debug empty pages.
+    private static func webAreas(_ app: NSRunningApplication) {
+        let appEl = AXUIElementCreateApplication(app.processIdentifier)
+        print("AXEnhancedUserInterface:", appEl.value("AXEnhancedUserInterface") ?? "nil" as NSString)
+        print("AXManualAccessibility:", appEl.value("AXManualAccessibility") ?? "nil" as NSString)
+        guard let win = appEl.element(kAXFocusedWindowAttribute) else { print("no focused window"); return }
+        print("window:", win.string(kAXTitleAttribute) ?? "", win.frame.map { "\($0)" } ?? "no frame")
+        var found = 0
+        func walk(_ el: AXUIElement, _ depth: Int, _ path: String) {
+            guard depth < 40 else { return }
+            let v = el.values([kAXRoleAttribute, kAXChildrenAttribute, kAXPositionAttribute, kAXSizeAttribute])
+            let role = v[kAXRoleAttribute] as? String ?? "?"
+            let kids = (v[kAXChildrenAttribute] as? [AXUIElement]) ?? []
+            if role == "AXWebArea" {
+                found += 1
+                let frame = AX.frame(position: v[kAXPositionAttribute], size: v[kAXSizeAttribute])
+                let params = el.parameterizedAttributeNames().contains("AXUIElementsForSearchPredicate")
+                print("AXWebArea depth \(depth) frame \(frame.map { "\($0)" } ?? "nil") children \(kids.count) searchPredicate \(params)")
+                print("  path:", path)
+                for visibleOnly in [true, false] {
+                    var q: [String: Any] = ["AXDirection": "AXDirectionNext", "AXImmediateDescendantsOnly": false,
+                                            "AXResultsLimit": -1, "AXVisibleOnly": visibleOnly]
+                    q["AXSearchKey"] = ElementProvider.webSearchKeys
+                    let multi = el.parameterized("AXUIElementsForSearchPredicate", q as CFDictionary)
+                    print("  multi-key visibleOnly=\(visibleOnly):", (multi as? [AXUIElement])?.count.description ?? "nil (\(String(describing: multi)))")
+                    for key in ["AXLinkSearchKey", "AXButtonSearchKey", "AXAnyTypeSearchKey"] {
+                        q["AXSearchKey"] = key
+                        let r = el.parameterized("AXUIElementsForSearchPredicate", q as CFDictionary) as? [AXUIElement]
+                        print("    \(key):", r?.count.description ?? "nil")
+                    }
+                }
+            }
+            for k in kids { walk(k, depth + 1, path + "/" + role) }
+        }
+        walk(win, 0, "")
+        print("web areas:", found)
     }
 
     static func windows() -> Int32 {

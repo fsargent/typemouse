@@ -162,7 +162,8 @@ final class ElementProvider {
             consider(el, role: role, values: v, visible: visible, depth: depth, inWeb: inWeb)
         }
 
-        if role == "AXWebArea", let results = webTargets(el) {
+        // An empty answer is common for pages built from iframes. Walk the tree instead.
+        if role == "AXWebArea", let results = webTargets(el), !results.isEmpty {
             parallel(results) { self.visitWebResult($0, clip: childClip, depth: depth + 1) }
             return
         }
