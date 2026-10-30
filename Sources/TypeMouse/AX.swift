@@ -140,6 +140,20 @@ enum AccessibilityActivator {
         if enhanced { el.set("AXEnhancedUserInterface", kCFBooleanTrue) }
     }
 
+    /// Wakes every running app now, so the first scan does not find an empty tree.
+    static func activateAll(enhancedApps: [String]) {
+        for app in NSWorkspace.shared.runningApplications where app.activationPolicy == .regular {
+            activate(app, enhanced: enhancedApps.contains(app.bundleIdentifier ?? ""))
+        }
+    }
+
+    /// Lets a config change apply again to apps already woken.
+    static func reset() {
+        lock.lock()
+        done.removeAll()
+        lock.unlock()
+    }
+
     static func forget(_ pid: pid_t) {
         lock.lock()
         done.remove(pid)

@@ -77,13 +77,13 @@ TypeMouse writes the defaults on first launch. Every key is optional.
   "clickStrategy": { "com.example.app": "mouse" },
   "restoreMousePosition": true,
   "labelFontSize": 12,
-  "enhancedUserInterfaceApps": []
+  "enhancedUserInterfaceApps": ["com.google.Chrome", "com.brave.Browser", "…"]
 }
 ```
 
 - Hotkey modifiers: `hyper` (⌘⌃⌥⇧), `meh` (⌃⌥⇧), `cmd`, `ctrl`, `opt`, `shift`.
 - `clickStrategy`: `auto` (default) uses AXPress, with a mouse click for web content and when AXPress fails. `press` never moves the mouse. `mouse` always sends a mouse click.
-- `enhancedUserInterfaceApps`: add a Chromium-based app here if its web content shows no labels. This setting can break window animations in tools such as Rectangle.
+- `enhancedUserInterfaceApps`: apps that get the `AXEnhancedUserInterface` flag. Chromium browsers need it to show web page labels. The default lists Chrome, Brave, Edge, Arc, Vivaldi, and Opera. The flag can slow window moves by tools such as Rectangle or Raycast.
 - To find a bundle identifier, run `osascript -e 'id of app "Slack"'`.
 
 ## Build and install

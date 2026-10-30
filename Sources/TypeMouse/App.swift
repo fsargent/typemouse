@@ -28,6 +28,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         WindowProvider.shared.startTracking()
+        AccessibilityActivator.activateAll(enhancedApps: config.enhancedUserInterfaceApps)
         NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didActivateApplicationNotification,
                                                           object: nil, queue: .main) { [weak self] n in
             guard let app = n.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication else { return }
@@ -158,6 +159,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self.hints.update(config: next)
             self.windows.update(config: next)
             self.registerHotkeys()
+            AccessibilityActivator.reset()
+            AccessibilityActivator.activateAll(enhancedApps: next.enhancedUserInterfaceApps)
         }
         src.setCancelHandler { close(fd) }
         src.resume()

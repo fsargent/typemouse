@@ -159,6 +159,12 @@ final class HotkeyAndConfigTests: XCTestCase {
         XCTAssertEqual(c.pins, ["s": "com.tinyspeck.slackmacgap"])
     }
 
+    func testChromiumBrowsersGetEnhancedUIByDefault() throws {
+        XCTAssertTrue(Config().enhancedUserInterfaceApps.contains("com.google.Chrome"))
+        let c = try Config.decode(Data(#"{"enhancedUserInterfaceApps": []}"#.utf8))
+        XCTAssertEqual(c.enhancedUserInterfaceApps, [])
+    }
+
     func testRoundTrip() throws {
         var c = Config()
         c.clickStrategy = ["com.example": .mouse]

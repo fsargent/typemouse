@@ -41,9 +41,18 @@ public struct Config: Codable, Equatable {
     /// Put the mouse back where it was after a synthetic click.
     public var restoreMousePosition = true
     public var labelFontSize: Double = 12
-    /// Bundle identifiers that need AXEnhancedUserInterface (some Chromium builds).
-    /// Off by default because it can break window animations in other tools.
-    public var enhancedUserInterfaceApps: [String] = []
+
+    /// Chromium browsers build the web page tree only when AXEnhancedUserInterface is on.
+    /// AXManualAccessibility (enough for Electron) does not work for them.
+    public static let chromiumBrowsers = [
+        "com.google.Chrome", "com.google.Chrome.beta", "com.google.Chrome.canary", "org.chromium.Chromium",
+        "com.brave.Browser", "com.microsoft.edgemac", "company.thebrowser.Browser", "com.vivaldi.Vivaldi",
+        "com.operasoftware.Opera",
+    ]
+
+    /// Bundle identifiers that get AXEnhancedUserInterface. This flag can make window-manager moves
+    /// of those apps slow or animated. Homerow sets the same flag.
+    public var enhancedUserInterfaceApps: [String] = Config.chromiumBrowsers
 
     public init() {}
 
