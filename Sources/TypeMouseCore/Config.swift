@@ -7,6 +7,7 @@ public struct Config: Codable, Equatable {
         public var click = "hyper+space"
         public var search = "hyper+backspace"
         public var window = "hyper+tab"
+        public var picker = "hyper+/"
 
         public init() {}
 
@@ -16,6 +17,7 @@ public struct Config: Codable, Equatable {
             click = try c.decodeIfPresent(String.self, forKey: .click) ?? d.click
             search = try c.decodeIfPresent(String.self, forKey: .search) ?? d.search
             window = try c.decodeIfPresent(String.self, forKey: .window) ?? d.window
+            picker = try c.decodeIfPresent(String.self, forKey: .picker) ?? d.picker
         }
     }
 

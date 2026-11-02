@@ -171,3 +171,39 @@ final class HotkeyAndConfigTests: XCTestCase {
         XCTAssertEqual(try Config.decode(c.encoded()), c)
     }
 }
+
+final class VisibilityTests: XCTestCase {
+    func testFullyVisibleWindowGetsItsCenter() {
+        let p = Visibility.labelPoints([.init(id: 1, frame: CGRect(x: 0, y: 0, width: 240, height: 240))])
+        XCTAssertEqual(p[1]!.x, 120, accuracy: 6)
+        XCTAssertEqual(p[1]!.y, 120, accuracy: 6)
+    }
+
+    func testCoveredWindowGetsNoLabel() {
+        let front = Visibility.Window(id: 1, frame: CGRect(x: 0, y: 0, width: 1000, height: 1000))
+        let back = Visibility.Window(id: 2, frame: CGRect(x: 100, y: 100, width: 200, height: 200))
+        XCTAssertNil(Visibility.labelPoints([front, back])[2])
+    }
+
+    func testLabelLandsOnTheVisiblePart() {
+        // The front window covers the left 3/4 of the back window.
+        let front = Visibility.Window(id: 1, frame: CGRect(x: 0, y: 0, width: 300, height: 400))
+        let back = Visibility.Window(id: 2, frame: CGRect(x: 0, y: 0, width: 400, height: 400))
+        let p = Visibility.labelPoints([front, back])[2]!
+        XCTAssertGreaterThan(p.x, 300)
+        XCTAssertFalse(front.frame.contains(p))
+    }
+
+    func testLShapedVisibleAreaStaysVisible() {
+        // The front window covers the middle of the back window's bottom-left, leaving an L shape.
+        let front = Visibility.Window(id: 1, frame: CGRect(x: 0, y: 100, width: 300, height: 300))
+        let back = Visibility.Window(id: 2, frame: CGRect(x: 0, y: 0, width: 400, height: 400))
+        let p = Visibility.labelPoints([front, back])[2]!
+        XCTAssertFalse(front.frame.contains(p))
+    }
+
+    func testDefaultPickerHotkey() {
+        XCTAssertEqual(Config().hotkeys.picker, "hyper+/")
+    }
+}
+

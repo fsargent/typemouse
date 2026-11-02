@@ -234,6 +234,9 @@ final class WindowPanel {
     private let stack = NSStackView()
     private let header = NSTextField(labelWithString: "")
 
+    /// The screen the panel opened on. It stays there while the panel is open.
+    private var screen: NSScreen?
+
     static let width: CGFloat = 720
     static let rowHeight: CGFloat = 30
 
@@ -247,6 +250,7 @@ final class WindowPanel {
         window.ignoresMouseEvents = true
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
         window.isReleasedWhenClosed = false
+        window.animationBehavior = .none
 
         let bg = NSVisualEffectView()
         bg.material = .hudWindow
@@ -289,11 +293,21 @@ final class WindowPanel {
 
         let shown = CGFloat(min(rows.count, maxRows))
         let height = 20 + 22 + max(1, shown) * (Self.rowHeight + 2)
-        let screen = NSScreen.main ?? NSScreen.screens[0]
-        let f = screen.visibleFrame
-        window.setFrame(CGRect(x: f.midX - Self.width / 2, y: f.midY - height / 2 + f.height * 0.1,
-                               width: Self.width, height: height), display: true)
+        // Pin the top edge, so rows stay in place when the list grows or shrinks.
+        let wasVisible = window.isVisible
+        if !wasVisible { screen = NSScreen.main ?? NSScreen.screens[0] }
+        let f = (screen ?? NSScreen.screens[0]).visibleFrame
+        let top = f.maxY - f.height * 0.18
+        window.setFrame(CGRect(x: f.midX - Self.width / 2, y: top - height, width: Self.width, height: height),
+                        display: true, animate: false)
+        guard !wasVisible else { return }
+        // The only motion: a fast fade-in when the panel first appears.
+        window.alphaValue = 0
         window.orderFrontRegardless()
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = 0.08
+            window.animator().alphaValue = 1
+        }
     }
 
     func hide() { window.orderOut(nil) }

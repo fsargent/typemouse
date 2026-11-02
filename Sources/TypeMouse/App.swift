@@ -8,6 +8,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var config = ConfigStore.load()
     private lazy var hints = HintMode(capture: capture, config: config)
     private lazy var windows = WindowMode(capture: capture, config: config)
+    private lazy var picker = WindowPicker(capture: capture, config: config)
     private var statusItem: NSStatusItem?
     private var configWatcher: DispatchSourceFileSystemObject?
     private var permissionTimer: Timer?
@@ -65,6 +66,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             (config.hotkeys.click, { [weak self] in self?.toggleHints(search: false) }),
             (config.hotkeys.search, { [weak self] in self?.toggleHints(search: true) }),
             (config.hotkeys.window, { [weak self] in self?.toggleWindows() }),
+            (config.hotkeys.picker, { [weak self] in self?.togglePicker() }),
         ]
         for (string, action) in pairs {
             guard let spec = HotkeySpec(string) else { Log.info("bad hotkey \"\(string)\""); continue }
@@ -75,13 +77,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func toggleHints(search: Bool) {
         guard capture.active || startCapture(prompt: true) else { return }
         windows.exit()
+        picker.exit()
         if hints.isActive { hints.exit() } else { hints.start(search: search) }
     }
 
     private func toggleWindows() {
         guard capture.active || startCapture(prompt: true) else { return }
         hints.exit()
+        picker.exit()
         if windows.isActive { windows.hotkeyAgain() } else { windows.start() }
+    }
+
+    private func togglePicker() {
+        guard capture.active || startCapture(prompt: true) else { return }
+        hints.exit()
+        windows.exit()
+        if picker.isActive { picker.exit() } else { picker.start() }
     }
 
     /// While a mode is active the tap swallows everything, including our own hotkeys,
@@ -90,8 +101,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if matches(key, config.hotkeys.click) { toggleHints(search: false); return }
         if matches(key, config.hotkeys.search) { toggleHints(search: true); return }
         if matches(key, config.hotkeys.window) { toggleWindows(); return }
+        if matches(key, config.hotkeys.picker) { togglePicker(); return }
         if hints.isActive { hints.handle(key) }
         else if windows.isActive { windows.handle(key) }
+        else if picker.isActive { picker.handle(key) }
         else { capture.setActive(false) }
     }
 
@@ -113,6 +126,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let menu = NSMenu()
         menu.addItem(withTitle: "Click mode  (\(config.hotkeys.click))", action: #selector(menuClick), keyEquivalent: "").target = self
         menu.addItem(withTitle: "Window mode  (\(config.hotkeys.window))", action: #selector(menuWindows), keyEquivalent: "").target = self
+        menu.addItem(withTitle: "Window picker  (\(config.hotkeys.picker))", action: #selector(menuPicker), keyEquivalent: "").target = self
         menu.addItem(.separator())
         menu.addItem(withTitle: "Open config", action: #selector(openConfig), keyEquivalent: "").target = self
         menu.addItem(withTitle: "Open log", action: #selector(openLog), keyEquivalent: "").target = self
@@ -142,6 +156,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { self.toggleWindows() }
     }
 
+    @objc private func menuPicker() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { self.togglePicker() }
+    }
+
     @objc private func toggleLoginItem(_ sender: NSMenuItem) {
         LoginItem.set(!LoginItem.isEnabled)
     }
@@ -166,6 +184,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self.config = next
             self.hints.update(config: next)
             self.windows.update(config: next)
+            self.picker.update(config: next)
             self.registerHotkeys()
             AccessibilityActivator.activateAll(enhancedApps: next.enhancedUserInterfaceApps)
         }

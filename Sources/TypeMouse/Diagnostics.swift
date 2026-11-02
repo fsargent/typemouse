@@ -85,6 +85,20 @@ enum Diagnostics {
         print("web areas:", found)
     }
 
+    /// Prints the windows the picker labels, with label positions.
+    static func visible() -> Int32 {
+        guard AX.isTrusted(prompt: false) else { print("No Accessibility permission."); return 1 }
+        AX.setGlobalTimeout(0.25)
+        let start = Date()
+        let entries = WindowPicker.visibleWindows()
+        let labels = Hints.generate(count: entries.count, alphabet: ConfigStore.load().hintAlphabet)
+        for (e, l) in zip(entries, labels) {
+            print("\(l.padding(toLength: 3, withPad: " ", startingAt: 0)) \(e.info.appName.padding(toLength: 22, withPad: " ", startingAt: 0)) at \(Int(e.point.x)),\(Int(e.point.y))  \(e.info.window == nil ? "(app only)" : e.info.title)")
+        }
+        print(String(format: "\n%d visible windows in %.0f ms", entries.count, Date().timeIntervalSince(start) * 1000))
+        return 0
+    }
+
     static func windows() -> Int32 {
         guard AX.isTrusted(prompt: false) else {
             print("No Accessibility permission for this process (or the terminal that started it).")

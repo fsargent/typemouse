@@ -69,6 +69,7 @@ final class Overlay {
             w.ignoresMouseEvents = true
             w.level = Self.level
             w.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
+            w.animationBehavior = .none
             w.isReleasedWhenClosed = false
             let v = NSView(frame: CGRect(origin: .zero, size: screen.frame.size))
             v.wantsLayer = true

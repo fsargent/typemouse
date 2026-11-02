@@ -49,9 +49,10 @@ final class WindowProvider {
 
     /// Windows on the current Space, plus minimized windows and windows of hidden apps.
     /// Sorted most recently used first.
-    func list(excluding ownPID: pid_t = ProcessInfo.processInfo.processIdentifier) -> [WindowInfo] {
+    /// - Parameter only: limit the query to these processes (faster when the caller knows them).
+    func list(excluding ownPID: pid_t = ProcessInfo.processInfo.processIdentifier, only: Set<pid_t>? = nil) -> [WindowInfo] {
         let apps = NSWorkspace.shared.runningApplications.filter {
-            $0.activationPolicy == .regular && $0.processIdentifier != ownPID
+            $0.activationPolicy == .regular && $0.processIdentifier != ownPID && (only?.contains($0.processIdentifier) ?? true)
         }
         var perApp = [[WindowInfo]](repeating: [], count: apps.count)
         perApp.withUnsafeMutableBufferPointer { buf in

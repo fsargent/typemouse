@@ -20,6 +20,7 @@ It is a personal replacement for [Homerow](https://www.homerow.app), with a sepa
 | `hyper+space` | Click | Shows a label on each clickable element. Type the label to click it. |
 | `hyper+backspace` | Search | Type part of an element's text. Press `Enter` to click the highlighted match. |
 | `hyper+tab` | Window | Shows a list of windows with stable labels. Type a label to focus the window. |
+| `hyper+/` | Window picker | Shows one label on each visible window. Press the label to focus that window. |
 
 ### Click mode keys
 
@@ -47,6 +48,17 @@ Open a menu-bar menu with one label, then press the hotkey again to pick an item
 | `Enter` (with `⇧`, `⌘`, `⌃`, `⌥`) | Click the highlighted match (same modifiers as click mode) |
 | `Backspace` on an empty query | Go back to labels |
 
+### Window picker keys
+
+The window picker labels each window that is at least partly visible on the current Space.
+The label sits on the visible part of the window. Labels follow screen order, top to bottom, then left to right.
+
+| Key | Action |
+|---|---|
+| label | Focus that window |
+| `Backspace` | Delete the last typed key |
+| `Esc` or the hotkey again | Exit |
+
 ### Window mode keys
 
 Each app gets one stable letter. An app with one window uses one key. An app with several windows uses two keys.
@@ -72,7 +84,7 @@ TypeMouse writes the defaults on first launch. Every key is optional.
 ```json
 {
   "hintCharacters": "fjdkslaghrueiwotyvmcxbn",
-  "hotkeys": { "click": "hyper+space", "search": "hyper+backspace", "window": "hyper+tab" },
+  "hotkeys": { "click": "hyper+space", "search": "hyper+backspace", "window": "hyper+tab", "picker": "hyper+/" },
   "windowPins": { "c": "com.google.Chrome", "s": "com.tinyspeck.slackmacgap", "t": "com.mitchellh.ghostty" },
   "clickStrategy": { "com.example.app": "mouse" },
   "restoreMousePosition": true,
@@ -127,6 +139,7 @@ The diagnostics run inside the app bundle, so they use the app's Accessibility p
 
 - `make dump APPNAME=Slack`: list the click targets in Slack's focused window, with scan times.
 - `make windows`: list windows with their window-mode labels.
+- `TypeMouse --visible`: list the windows the window picker labels. Run it with `open` and `--out FILE`, like `make dump`.
 - The log is at `~/Library/Logs/TypeMouse/typemouse.log`. It records each scan time and each click.
 
 ## How it works

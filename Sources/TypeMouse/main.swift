@@ -18,6 +18,7 @@ if arguments.contains("--help") {
       TypeMouse --dump [--app NAME] list click targets in an app's focused window, with timing
       TypeMouse --windows           list windows with their window-mode labels
       TypeMouse --disable-login-item  stop launching at login (run through `open`)
+      TypeMouse --visible           list the windows the window picker labels
       --out FILE                  write diagnostics output to FILE
     """)
     exit(0)
@@ -29,6 +30,7 @@ if arguments.contains("--disable-login-item") {
 }
 if arguments.contains("--dump") { exit(Diagnostics.dump(arguments)) }
 if arguments.contains("--windows") { exit(Diagnostics.windows()) }
+if arguments.contains("--visible") { exit(Diagnostics.visible()) }
 
 let app = NSApplication.shared
 let delegate = AppDelegate()
