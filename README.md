@@ -18,8 +18,8 @@ It is a personal replacement for [Homerow](https://www.homerow.app), with a sepa
 | Hotkey | Mode | What it does |
 |---|---|---|
 | `hyper+space` | Click | Shows a label on each clickable element. Type the label to click it. |
-| `hyper+backspace` | Search | Type part of an element's text. Press `Enter` to click the highlighted match. |
-| `hyper+tab` | Window | Shows a list of windows with stable labels. Type a label to focus the window. |
+| `hyper+k` | Search | Type part of an element's text. Press `Enter` to click the highlighted match. |
+| `hyper+l` | Window | Shows a list of windows with stable labels. Type a label to focus the window. |
 | `hyper+j` | Window picker | Shows one label on each visible window. Press the label to focus that window. |
 
 ### Click mode keys
@@ -67,7 +67,7 @@ The second key comes from the hint characters, in most-recently-used order.
 | Key | Action |
 |---|---|
 | label | Focus that window (or launch a pinned app) |
-| `Enter` | Focus the highlighted row. The previous window is highlighted first, so `hyper+tab`, `Enter` toggles between two windows. |
+| `Enter` | Focus the highlighted row. The previous window is highlighted first, so `hyper+l`, `Enter` toggles between two windows. |
 | hotkey again, `Tab`, `↓`, `⌃N` | Next row |
 | `↑`, `⇧Tab`, `⌃P` | Previous row |
 | `/` or any key that is not a label | Fuzzy filter by app name and window title |
@@ -80,7 +80,7 @@ Pin letters to apps so that they never change. A pinned app that is not running 
 
 Open **Settings…** from the menu-bar icon, or open TypeMouse again while it runs.
 
-- **Hotkeys**: click a hotkey, then press the new key combination. Press `Esc` to cancel.
+- **Hotkeys**: click a hotkey, then press the new key combination. Press `Esc` to cancel. Click **+ Add** to give a mode a second hotkey.
 - **Labels**: hint characters and label size.
 - **Behavior**: mouse position after a click, and launch at login.
 
@@ -94,7 +94,7 @@ TypeMouse writes the defaults on first launch. Every key is optional.
 ```json
 {
   "hintCharacters": "fjdkslaghrueiwotyvmcxbn",
-  "hotkeys": { "click": "hyper+space", "search": "hyper+backspace", "window": "hyper+tab", "picker": "hyper+j" },
+  "hotkeys": { "click": "hyper+space", "search": "hyper+k", "window": "hyper+l", "picker": "hyper+j" },
   "windowPins": { "c": "com.google.Chrome", "s": "com.tinyspeck.slackmacgap", "t": "com.mitchellh.ghostty" },
   "clickStrategy": { "com.example.app": "mouse" },
   "restoreMousePosition": true,
@@ -104,6 +104,7 @@ TypeMouse writes the defaults on first launch. Every key is optional.
 ```
 
 - Hotkey modifiers: `hyper` (⌘⌃⌥⇧), `meh` (⌃⌥⇧), `cmd`, `ctrl`, `opt`, `shift`.
+- A mode takes one hotkey or a list, for example `"search": ["hyper+k", "hyper+backspace"]`.
 - `clickStrategy`: `auto` (default) uses AXPress, with a mouse click for web content and when AXPress fails. `press` never moves the mouse. `mouse` always sends a mouse click.
 - `enhancedUserInterfaceApps`: apps that get the `AXEnhancedUserInterface` flag. Chromium browsers need it to show web page labels. The default lists Chrome, Brave, Edge, Arc, Vivaldi, and Opera. The flag can slow window moves by tools such as Rectangle or Raycast.
 - To find a bundle identifier, run `osascript -e 'id of app "Slack"'`.

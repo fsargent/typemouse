@@ -14,7 +14,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var permissionTimer: Timer?
     private var flagTimer: Timer?
     private var loginMenuItem: NSMenuItem?
-    private var modeMenuItems: [(NSMenuItem, String, KeyPath<Config.Hotkeys, String>)] = []
+    private var modeMenuItems: [(NSMenuItem, String, KeyPath<Config.Hotkeys, [String]>)] = []
     private lazy var settings = SettingsWindowController(
         config: config,
         save: { ConfigStore.save($0) },
@@ -76,15 +76,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func registerHotkeys() {
         hotkeys.unregisterAll()
-        let pairs: [(String, () -> Void)] = [
+        let pairs: [([String], () -> Void)] = [
             (config.hotkeys.click, { [weak self] in self?.toggleHints(search: false) }),
             (config.hotkeys.search, { [weak self] in self?.toggleHints(search: true) }),
             (config.hotkeys.window, { [weak self] in self?.toggleWindows() }),
             (config.hotkeys.picker, { [weak self] in self?.togglePicker() }),
         ]
-        for (string, action) in pairs {
-            guard let spec = HotkeySpec(string) else { Log.info("bad hotkey \"\(string)\""); continue }
-            _ = hotkeys.register(spec, action)
+        for (strings, action) in pairs {
+            for string in strings {
+                guard let spec = HotkeySpec(string) else { Log.info("bad hotkey \"\(string)\""); continue }
+                _ = hotkeys.register(spec, action)
+            }
         }
     }
 
@@ -122,14 +124,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         else { capture.setActive(false) }
     }
 
-    private func matches(_ key: KeyEvent, _ string: String) -> Bool {
-        guard let spec = HotkeySpec(string), Int64(spec.keyCode) == key.keyCode else { return false }
+    private func matches(_ key: KeyEvent, _ strings: [String]) -> Bool {
         var mods: HotkeySpec.Modifiers = []
         if key.command { mods.insert(.command) }
         if key.shift { mods.insert(.shift) }
         if key.option { mods.insert(.option) }
         if key.control { mods.insert(.control) }
-        return mods == spec.modifiers
+        return strings.contains { string in
+            guard let spec = HotkeySpec(string) else { return false }
+            return Int64(spec.keyCode) == key.keyCode && mods == spec.modifiers
+        }
     }
 
     // MARK: - Menu bar
@@ -281,8 +285,8 @@ extension AppDelegate: NSMenuDelegate {
         loginMenuItem?.state = LoginItem.isEnabled ? .on : .off
         // Hotkeys can change in the settings window or the file, so label the items when the menu opens.
         for (item, title, keyPath) in modeMenuItems {
-            let hotkey = config.hotkeys[keyPath: keyPath]
-            item.title = "\(title)  (\(HotkeySpec(hotkey)?.displayString ?? hotkey))"
+            let shown = config.hotkeys[keyPath: keyPath].map { HotkeySpec($0)?.displayString ?? $0 }
+            item.title = "\(title)  (\(shown.joined(separator: " or ")))"
         }
     }
 }

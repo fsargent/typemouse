@@ -153,8 +153,8 @@ final class HotkeyAndConfigTests: XCTestCase {
     func testPartialConfigKeepsDefaults() throws {
         let json = #"{"hotkeys": {"window": "hyper+w"}, "windowPins": {"s": "com.tinyspeck.slackmacgap"}}"#
         let c = try Config.decode(Data(json.utf8))
-        XCTAssertEqual(c.hotkeys.window, "hyper+w")
-        XCTAssertEqual(c.hotkeys.click, "hyper+space")
+        XCTAssertEqual(c.hotkeys.window, ["hyper+w"])
+        XCTAssertEqual(c.hotkeys.click, ["hyper+space"])
         XCTAssertEqual(c.hintCharacters, "fjdkslaghrueiwotyvmcxbn")
         XCTAssertEqual(c.pins, ["s": "com.tinyspeck.slackmacgap"])
     }
@@ -163,6 +163,18 @@ final class HotkeyAndConfigTests: XCTestCase {
         XCTAssertTrue(Config().enhancedUserInterfaceApps.contains("com.google.Chrome"))
         let c = try Config.decode(Data(#"{"enhancedUserInterfaceApps": []}"#.utf8))
         XCTAssertEqual(c.enhancedUserInterfaceApps, [])
+    }
+
+    func testHotkeysTakeAStringOrAList() throws {
+        let json = #"{"hotkeys": {"search": ["hyper+k", "hyper+backspace"], "window": "hyper+l"}}"#
+        let c = try Config.decode(Data(json.utf8))
+        XCTAssertEqual(c.hotkeys.search, ["hyper+k", "hyper+backspace"])
+        XCTAssertEqual(c.hotkeys.window, ["hyper+l"])
+        XCTAssertEqual(try Config.decode(c.encoded()), c)
+        // A single hotkey is written as a plain string.
+        let text = String(decoding: try c.encoded(), as: UTF8.self)
+        XCTAssertTrue(text.contains(#""window" : "hyper+l""#), text)
+        XCTAssertTrue(text.contains(#""hyper+backspace""#), text)
     }
 
     func testRoundTrip() throws {
@@ -203,7 +215,9 @@ final class VisibilityTests: XCTestCase {
     }
 
     func testDefaultPickerHotkey() {
-        XCTAssertEqual(Config().hotkeys.picker, "hyper+j")
+        XCTAssertEqual(Config().hotkeys.picker, ["hyper+j"])
+        XCTAssertEqual(Config().hotkeys.search, ["hyper+k"])
+        XCTAssertEqual(Config().hotkeys.window, ["hyper+l"])
     }
 }
 

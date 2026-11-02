@@ -46,7 +46,7 @@ final class SettingsModel: ObservableObject {
 
         var id: String { rawValue }
 
-        var keyPath: WritableKeyPath<Config.Hotkeys, String> {
+        var keyPath: WritableKeyPath<Config.Hotkeys, [String]> {
             switch self {
             case .click: return \.click
             case .search: return \.search
@@ -56,8 +56,16 @@ final class SettingsModel: ObservableObject {
         }
     }
 
+    /// One hotkey of a mode. Index 0 is the main hotkey, index 1 the second one.
+    struct Slot: Equatable {
+        let mode: Mode
+        let index: Int
+    }
+
+    static let slotsPerMode = 2
+
     @Published var config: Config
-    @Published private(set) var recordingMode: Mode?
+    @Published private(set) var recordingSlot: Slot?
     private let save: (Config) -> Void
     private let recording: (Bool) -> Void
     private var monitor: Any?
@@ -70,25 +78,43 @@ final class SettingsModel: ObservableObject {
 
     func commit() { save(config) }
 
-    func hotkey(_ mode: Mode) -> String { config.hotkeys[keyPath: mode.keyPath] }
+    func hotkeys(_ mode: Mode) -> [String] { config.hotkeys[keyPath: mode.keyPath] }
 
-    /// The other mode that uses the same hotkey, if any.
-    func conflict(_ mode: Mode) -> Mode? {
-        guard let mine = HotkeySpec(hotkey(mode)) else { return nil }
-        return Mode.allCases.first { other in
-            guard other != mode, let theirs = HotkeySpec(hotkey(other)) else { return false }
-            return theirs.keyCode == mine.keyCode && theirs.modifiers == mine.modifiers
-        }
+    func hotkey(_ slot: Slot) -> String? {
+        let list = hotkeys(slot.mode)
+        return list.indices.contains(slot.index) ? list[slot.index] : nil
     }
 
-    func record(_ mode: Mode) {
+    func isDefault(_ mode: Mode) -> Bool { hotkeys(mode) == Config.Hotkeys()[keyPath: mode.keyPath] }
+
+    /// Another slot (in any mode) with the same key combination, if any.
+    func conflict(_ slot: Slot) -> Slot? {
+        guard let string = hotkey(slot), let mine = HotkeySpec(string) else { return nil }
+        for mode in Mode.allCases {
+            for (i, other) in hotkeys(mode).enumerated() where Slot(mode: mode, index: i) != slot {
+                if let theirs = HotkeySpec(other), theirs.keyCode == mine.keyCode, theirs.modifiers == mine.modifiers {
+                    return Slot(mode: mode, index: i)
+                }
+            }
+        }
+        return nil
+    }
+
+    func record(_ slot: Slot) {
         stopRecording()
-        recordingMode = mode
+        recordingSlot = slot
         recording(true)
         monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             self?.recorded(event)
             return nil
         }
+    }
+
+    /// Removes the second hotkey. The main hotkey cannot be removed, so every mode stays reachable.
+    func remove(_ slot: Slot) {
+        guard slot.index > 0, hotkey(slot) != nil else { return }
+        config.hotkeys[keyPath: slot.mode.keyPath].remove(at: slot.index)
+        commit()
     }
 
     func reset(_ mode: Mode) {
@@ -97,7 +123,7 @@ final class SettingsModel: ObservableObject {
     }
 
     private func recorded(_ event: NSEvent) {
-        guard let mode = recordingMode else { return }
+        guard let slot = recordingSlot else { return }
         let flags = event.modifierFlags
         var mods: HotkeySpec.Modifiers = []
         if flags.contains(.command) { mods.insert(.command) }
@@ -112,7 +138,9 @@ final class SettingsModel: ObservableObject {
             NSSound.beep()
             return
         }
-        config.hotkeys[keyPath: mode.keyPath] = string
+        var list = hotkeys(slot.mode)
+        if list.indices.contains(slot.index) { list[slot.index] = string } else { list.append(string) }
+        config.hotkeys[keyPath: slot.mode.keyPath] = list
         stopRecording()
         commit()
     }
@@ -120,8 +148,8 @@ final class SettingsModel: ObservableObject {
     func stopRecording() {
         if let monitor { NSEvent.removeMonitor(monitor) }
         monitor = nil
-        if recordingMode != nil {
-            recordingMode = nil
+        if recordingSlot != nil {
+            recordingSlot = nil
             recording(false)
         }
     }
@@ -139,16 +167,20 @@ struct SettingsView: View {
                     HStack {
                         Text(mode.rawValue)
                         Spacer()
-                        if let other = model.conflict(mode) {
-                            Text("Same as \(other.rawValue)").font(.caption).foregroundStyle(.red)
+                        ForEach(0..<SettingsModel.slotsPerMode, id: \.self) { index in
+                            slotView(SettingsModel.Slot(mode: mode, index: index))
                         }
-                        Button(label(mode)) { model.record(mode) }
-                            .frame(minWidth: 150)
                         Button("Reset") { model.reset(mode) }
-                            .disabled(model.hotkey(mode) == Config.Hotkeys()[keyPath: mode.keyPath])
+                            .disabled(model.isDefault(mode))
+                    }
+                    ForEach(0..<SettingsModel.slotsPerMode, id: \.self) { index in
+                        if let other = model.conflict(SettingsModel.Slot(mode: mode, index: index)) {
+                            Text("\(model.hotkey(SettingsModel.Slot(mode: mode, index: index)).flatMap { HotkeySpec($0)?.displayString } ?? "") is also used by \(other.mode.rawValue)")
+                                .font(.caption).foregroundStyle(.red)
+                        }
                     }
                 }
-                Text("Click a hotkey, then press the new key combination. Press Esc to cancel. Another app can own a hotkey without a warning. If a hotkey does nothing, try another.")
+                Text("Click a hotkey, then press the new key combination. Press Esc to cancel. Each mode can have a second hotkey. Another app can own a hotkey without a warning. If a hotkey does nothing, try another.")
                     .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
 
@@ -194,9 +226,24 @@ struct SettingsView: View {
         .onChange(of: model.config.hintCharacters) { _, new in hintCharacters = new }
     }
 
-    private func label(_ mode: SettingsModel.Mode) -> String {
-        if model.recordingMode == mode { return "Press keys…" }
-        return HotkeySpec(model.hotkey(mode))?.displayString ?? model.hotkey(mode)
+    @ViewBuilder
+    private func slotView(_ slot: SettingsModel.Slot) -> some View {
+        let recording = model.recordingSlot == slot
+        if let hotkey = model.hotkey(slot) {
+            HStack(spacing: 2) {
+                Button(recording ? "Press keys…" : (HotkeySpec(hotkey)?.displayString ?? hotkey)) { model.record(slot) }
+                    .frame(minWidth: 110)
+                if slot.index > 0 {
+                    Button { model.remove(slot) } label: { Image(systemName: "xmark.circle.fill") }
+                        .buttonStyle(.borderless)
+                        .help("Remove this hotkey")
+                }
+            }
+        } else if slot.index == model.hotkeys(slot.mode).count {
+            // Only the next free slot shows an "add" button.
+            Button(recording ? "Press keys…" : "+ Add") { model.record(slot) }
+                .frame(minWidth: 110)
+        }
     }
 
     private var hintCharactersValid: Bool {

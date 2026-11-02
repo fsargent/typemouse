@@ -3,21 +3,43 @@ import Foundation
 /// User configuration, read from ~/.config/typemouse/config.json.
 /// Every key is optional. Missing keys keep their defaults.
 public struct Config: Codable, Equatable {
+    /// Each mode can have several hotkeys. In the file, a mode takes one string ("hyper+k")
+    /// or a list (["hyper+k", "hyper+backspace"]).
     public struct Hotkeys: Codable, Equatable {
-        public var click = "hyper+space"
-        public var search = "hyper+backspace"
-        public var window = "hyper+tab"
-        public var picker = "hyper+j"
+        public var click = ["hyper+space"]
+        public var search = ["hyper+k"]
+        public var window = ["hyper+l"]
+        public var picker = ["hyper+j"]
+
+        enum CodingKeys: String, CodingKey { case click, search, window, picker }
 
         public init() {}
 
         public init(from decoder: Decoder) throws {
             let c = try decoder.container(keyedBy: CodingKeys.self)
             let d = Hotkeys()
-            click = try c.decodeIfPresent(String.self, forKey: .click) ?? d.click
-            search = try c.decodeIfPresent(String.self, forKey: .search) ?? d.search
-            window = try c.decodeIfPresent(String.self, forKey: .window) ?? d.window
-            picker = try c.decodeIfPresent(String.self, forKey: .picker) ?? d.picker
+            click = try Self.decode(c, .click) ?? d.click
+            search = try Self.decode(c, .search) ?? d.search
+            window = try Self.decode(c, .window) ?? d.window
+            picker = try Self.decode(c, .picker) ?? d.picker
+        }
+
+        public func encode(to encoder: Encoder) throws {
+            var c = encoder.container(keyedBy: CodingKeys.self)
+            try Self.encode(click, &c, .click)
+            try Self.encode(search, &c, .search)
+            try Self.encode(window, &c, .window)
+            try Self.encode(picker, &c, .picker)
+        }
+
+        private static func decode(_ c: KeyedDecodingContainer<CodingKeys>, _ key: CodingKeys) throws -> [String]? {
+            if let list = try? c.decodeIfPresent([String].self, forKey: key) { return list }
+            return try c.decodeIfPresent(String.self, forKey: key).map { [$0] }
+        }
+
+        /// One hotkey stays a plain string, so simple files stay simple.
+        private static func encode(_ list: [String], _ c: inout KeyedEncodingContainer<CodingKeys>, _ key: CodingKeys) throws {
+            if list.count == 1 { try c.encode(list[0], forKey: key) } else { try c.encode(list, forKey: key) }
         }
     }
 
