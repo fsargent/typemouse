@@ -51,3 +51,54 @@ public struct HotkeySpec: Equatable, CustomStringConvertible {
         "left": 123, "right": 124, "down": 125, "up": 126,
     ]
 }
+
+extension HotkeySpec {
+    /// Names used when writing a hotkey to the config. Some keys have aliases ("enter", "delete"),
+    /// so writing needs one fixed name per key code.
+    static let canonicalNames: [UInt32: String] = {
+        var out: [UInt32: String] = [:]
+        let preferred = ["return", "backspace", "escape"]
+        for (name, code) in keyCodes where out[code] == nil || preferred.contains(name) { out[code] = name }
+        return out
+    }()
+
+    /// The config string for a key press, for example "hyper+j" or "ctrl+opt+k".
+    /// Returns nil for keys TypeMouse cannot register.
+    public static func configString(keyCode: UInt32, modifiers: Modifiers) -> String? {
+        guard let key = canonicalNames[keyCode] else { return nil }
+        if modifiers == .hyper { return "hyper+" + key }
+        var parts: [String] = []
+        if modifiers.contains(.control) { parts.append("ctrl") }
+        if modifiers.contains(.option) { parts.append("opt") }
+        if modifiers.contains(.shift) { parts.append("shift") }
+        if modifiers.contains(.command) { parts.append("cmd") }
+        return (parts + [key]).joined(separator: "+")
+    }
+
+    /// Short label for the UI, for example "Hyper J" or "⌃⌥K".
+    public var displayString: String {
+        let key = HotkeySpec.canonicalNames[keyCode].map(HotkeySpec.displayKey) ?? "?"
+        if modifiers == .hyper { return "Hyper " + key }
+        var s = ""
+        if modifiers.contains(.control) { s += "⌃" }
+        if modifiers.contains(.option) { s += "⌥" }
+        if modifiers.contains(.shift) { s += "⇧" }
+        if modifiers.contains(.command) { s += "⌘" }
+        return s + key
+    }
+
+    static func displayKey(_ name: String) -> String {
+        switch name {
+        case "space": return "Space"
+        case "return": return "↩"
+        case "tab": return "⇥"
+        case "backspace": return "⌫"
+        case "escape": return "⎋"
+        case "left": return "←"
+        case "right": return "→"
+        case "up": return "↑"
+        case "down": return "↓"
+        default: return name.uppercased()
+        }
+    }
+}

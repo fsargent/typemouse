@@ -76,6 +76,16 @@ The second key comes from the hint characters, in most-recently-used order.
 
 Pin letters to apps so that they never change. A pinned app that is not running shows a "launch" row.
 
+## Settings
+
+Open **Settings…** from the menu-bar icon, or open TypeMouse again while it runs.
+
+- **Hotkeys**: click a hotkey, then press the new key combination. Press `Esc` to cancel.
+- **Labels**: hint characters and label size.
+- **Behavior**: mouse position after a click, and launch at login.
+
+The settings window writes the same config file described below.
+
 ## Configuration
 
 TypeMouse reads `~/.config/typemouse/config.json` and reloads it when the file changes.

@@ -14,6 +14,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var permissionTimer: Timer?
     private var flagTimer: Timer?
     private var loginMenuItem: NSMenuItem?
+    private var modeMenuItems: [(NSMenuItem, String, KeyPath<Config.Hotkeys, String>)] = []
+    private lazy var settings = SettingsWindowController(
+        config: config,
+        save: { ConfigStore.save($0) },
+        recording: { [weak self] on in
+            // While a field records, release our hotkeys so the keys reach the settings window.
+            if on { self?.hotkeys.unregisterAll() } else { self?.registerHotkeys() }
+        })
 
     func applicationDidFinishLaunching(_ note: Notification) {
         Log.info("TypeMouse starting, pid \(ProcessInfo.processInfo.processIdentifier)")
@@ -47,6 +55,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         watchConfig()
         LoginItem.enableOnFirstLaunch()
+    }
+
+    /// Opening the app again (Finder, Spotlight, Raycast) shows the settings window.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        settings.show()
+        return false
     }
 
     private func startCapture(prompt: Bool) -> Bool {
@@ -124,10 +138,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         item.button?.image = NSImage(systemSymbolName: "cursorarrow.rays", accessibilityDescription: "TypeMouse")
         let menu = NSMenu()
-        menu.addItem(withTitle: "Click mode  (\(config.hotkeys.click))", action: #selector(menuClick), keyEquivalent: "").target = self
-        menu.addItem(withTitle: "Window mode  (\(config.hotkeys.window))", action: #selector(menuWindows), keyEquivalent: "").target = self
-        menu.addItem(withTitle: "Window picker  (\(config.hotkeys.picker))", action: #selector(menuPicker), keyEquivalent: "").target = self
+        for (title, action, keyPath) in [("Click mode", #selector(menuClick), \Config.Hotkeys.click),
+                                         ("Window list", #selector(menuWindows), \Config.Hotkeys.window),
+                                         ("Window picker", #selector(menuPicker), \Config.Hotkeys.picker)] {
+            let mi = menu.addItem(withTitle: title, action: action, keyEquivalent: "")
+            mi.target = self
+            modeMenuItems.append((mi, title, keyPath))
+        }
         menu.addItem(.separator())
+        menu.addItem(withTitle: "Settings…", action: #selector(openSettings), keyEquivalent: ",").target = self
         menu.addItem(withTitle: "Open config", action: #selector(openConfig), keyEquivalent: "").target = self
         menu.addItem(withTitle: "Open log", action: #selector(openLog), keyEquivalent: "").target = self
         menu.addItem(withTitle: "Accessibility settings…", action: #selector(openAXSettings), keyEquivalent: "").target = self
@@ -164,6 +183,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         LoginItem.set(!LoginItem.isEnabled)
     }
 
+    @objc private func openSettings() { settings.show() }
+
     @objc private func openConfig() { NSWorkspace.shared.open(ConfigStore.url) }
     @objc private func openLog() { NSWorkspace.shared.open(Log.url) }
     @objc private func openAXSettings() {
@@ -185,6 +206,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self.hints.update(config: next)
             self.windows.update(config: next)
             self.picker.update(config: next)
+            self.settings.update(config: next)
             self.registerHotkeys()
             AccessibilityActivator.activateAll(enhancedApps: next.enhancedUserInterfaceApps)
         }
@@ -197,6 +219,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 enum ConfigStore {
     static let url = FileManager.default.homeDirectoryForCurrentUser
         .appendingPathComponent(".config/typemouse/config.json")
+
+    /// The file watcher picks up the change and applies it.
+    static func save(_ config: Config) {
+        do {
+            try config.encoded().write(to: url, options: .atomic)
+        } catch {
+            Log.info("config save failed: \(error)")
+        }
+    }
 
     static func load() -> Config {
         let fm = FileManager.default
@@ -248,6 +279,11 @@ enum Log {
 extension AppDelegate: NSMenuDelegate {
     func menuWillOpen(_ menu: NSMenu) {
         loginMenuItem?.state = LoginItem.isEnabled ? .on : .off
+        // Hotkeys can change in the settings window or the file, so label the items when the menu opens.
+        for (item, title, keyPath) in modeMenuItems {
+            let hotkey = config.hotkeys[keyPath: keyPath]
+            item.title = "\(title)  (\(HotkeySpec(hotkey)?.displayString ?? hotkey))"
+        }
     }
 }
 

@@ -207,3 +207,30 @@ final class VisibilityTests: XCTestCase {
     }
 }
 
+final class HotkeyFormattingTests: XCTestCase {
+    func testConfigStringRoundTrips() {
+        for string in ["hyper+j", "hyper+space", "hyper+backspace", "ctrl+opt+k", "cmd+shift+return", "hyper+/"] {
+            let spec = HotkeySpec(string)!
+            let written = HotkeySpec.configString(keyCode: spec.keyCode, modifiers: spec.modifiers)!
+            XCTAssertEqual(HotkeySpec(written)!.keyCode, spec.keyCode, string)
+            XCTAssertEqual(HotkeySpec(written)!.modifiers, spec.modifiers, string)
+        }
+        XCTAssertEqual(HotkeySpec.configString(keyCode: 38, modifiers: .hyper), "hyper+j")
+    }
+
+    func testAliasesWriteCanonicalNames() {
+        XCTAssertEqual(HotkeySpec.configString(keyCode: HotkeySpec("hyper+delete")!.keyCode, modifiers: .hyper), "hyper+backspace")
+        XCTAssertEqual(HotkeySpec.configString(keyCode: HotkeySpec("cmd+enter")!.keyCode, modifiers: .command), "cmd+return")
+    }
+
+    func testUnknownKeyCode() {
+        XCTAssertNil(HotkeySpec.configString(keyCode: 999, modifiers: .hyper))
+    }
+
+    func testDisplayString() {
+        XCTAssertEqual(HotkeySpec("hyper+j")!.displayString, "Hyper J")
+        XCTAssertEqual(HotkeySpec("ctrl+opt+k")!.displayString, "⌃⌥K")
+        XCTAssertEqual(HotkeySpec("hyper+space")!.displayString, "Hyper Space")
+    }
+}
+
