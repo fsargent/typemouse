@@ -203,7 +203,7 @@ final class VisibilityTests: XCTestCase {
     }
 
     func testDefaultPickerHotkey() {
-        XCTAssertEqual(Config().hotkeys.picker, "hyper+/")
+        XCTAssertEqual(Config().hotkeys.picker, "hyper+j")
     }
 }
 

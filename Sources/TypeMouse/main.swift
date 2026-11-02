@@ -19,6 +19,8 @@ if arguments.contains("--help") {
       TypeMouse --windows           list windows with their window-mode labels
       TypeMouse --disable-login-item  stop launching at login (run through `open`)
       TypeMouse --visible           list the windows the window picker labels
+      TypeMouse --post-key KEY      send a synthetic key press, for example hyper+j
+      TypeMouse --keylog SECONDS    print key presses and modifiers
       --out FILE                  write diagnostics output to FILE
     """)
     exit(0)
@@ -31,6 +33,8 @@ if arguments.contains("--disable-login-item") {
 if arguments.contains("--dump") { exit(Diagnostics.dump(arguments)) }
 if arguments.contains("--windows") { exit(Diagnostics.windows()) }
 if arguments.contains("--visible") { exit(Diagnostics.visible()) }
+if let i = arguments.firstIndex(of: "--keylog"), i + 1 < arguments.count { exit(Diagnostics.keylog(seconds: Double(arguments[i + 1]) ?? 10)) }
+if let i = arguments.firstIndex(of: "--post-key"), i + 1 < arguments.count { exit(Diagnostics.postKey(arguments[i + 1])) }
 
 let app = NSApplication.shared
 let delegate = AppDelegate()

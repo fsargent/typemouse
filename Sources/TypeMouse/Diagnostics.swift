@@ -99,6 +99,46 @@ enum Diagnostics {
         return 0
     }
 
+    /// Prints each key press (key code and modifiers) for a while, to debug hotkeys that never arrive.
+    /// Events pass through unchanged.
+    static func keylog(seconds: Double) -> Int32 {
+        let mask = CGEventMask(1 << CGEventType.keyDown.rawValue)
+        guard let tap = CGEvent.tapCreate(tap: .cgSessionEventTap, place: .headInsertEventTap, options: .listenOnly,
+                                          eventsOfInterest: mask, callback: { _, _, event, _ in
+            let f = event.flags
+            let mods = [(CGEventFlags.maskControl, "ctrl"), (.maskAlternate, "opt"), (.maskShift, "shift"), (.maskCommand, "cmd")]
+                .filter { f.contains($0.0) }.map(\.1).joined(separator: "+")
+            let code = event.getIntegerValueField(.keyboardEventKeycode)
+            let name = HotkeySpec.keyCodes.first { Int64($0.value) == code }?.key ?? "?"
+            print("keyDown code=\(code) (\(name)) mods=\(mods.isEmpty ? "none" : mods)")
+            return Unmanaged.passUnretained(event)
+        }, userInfo: nil) else { print("could not create event tap"); return 1 }
+        CFRunLoopAddSource(CFRunLoopGetCurrent(), CFMachPortCreateRunLoopSource(nil, tap, 0), .commonModes)
+        CGEvent.tapEnable(tap: tap, enable: true)
+        print("logging keys for \(Int(seconds)) s")
+        CFRunLoopRunInMode(.defaultMode, seconds, false)
+        return 0
+    }
+
+    /// Posts a synthetic key press, for example "hyper+/", to test hotkeys end to end.
+    static func postKey(_ string: String) -> Int32 {
+        guard let spec = HotkeySpec(string) else { print("bad key: \(string)"); return 1 }
+        var flags: CGEventFlags = []
+        if spec.modifiers.contains(.command) { flags.insert(.maskCommand) }
+        if spec.modifiers.contains(.shift) { flags.insert(.maskShift) }
+        if spec.modifiers.contains(.option) { flags.insert(.maskAlternate) }
+        if spec.modifiers.contains(.control) { flags.insert(.maskControl) }
+        let src = CGEventSource(stateID: .hidSystemState)
+        for down in [true, false] {
+            let e = CGEvent(keyboardEventSource: src, virtualKey: CGKeyCode(spec.keyCode), keyDown: down)
+            e?.flags = flags
+            e?.post(tap: .cghidEventTap)
+            usleep(30_000)
+        }
+        print("posted \(string)")
+        return 0
+    }
+
     static func windows() -> Int32 {
         guard AX.isTrusted(prompt: false) else {
             print("No Accessibility permission for this process (or the terminal that started it).")

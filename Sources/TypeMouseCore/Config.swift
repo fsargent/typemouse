@@ -7,7 +7,7 @@ public struct Config: Codable, Equatable {
         public var click = "hyper+space"
         public var search = "hyper+backspace"
         public var window = "hyper+tab"
-        public var picker = "hyper+/"
+        public var picker = "hyper+j"
 
         public init() {}
 

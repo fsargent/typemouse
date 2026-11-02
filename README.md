@@ -20,7 +20,7 @@ It is a personal replacement for [Homerow](https://www.homerow.app), with a sepa
 | `hyper+space` | Click | Shows a label on each clickable element. Type the label to click it. |
 | `hyper+backspace` | Search | Type part of an element's text. Press `Enter` to click the highlighted match. |
 | `hyper+tab` | Window | Shows a list of windows with stable labels. Type a label to focus the window. |
-| `hyper+/` | Window picker | Shows one label on each visible window. Press the label to focus that window. |
+| `hyper+j` | Window picker | Shows one label on each visible window. Press the label to focus that window. |
 
 ### Click mode keys
 
@@ -84,7 +84,7 @@ TypeMouse writes the defaults on first launch. Every key is optional.
 ```json
 {
   "hintCharacters": "fjdkslaghrueiwotyvmcxbn",
-  "hotkeys": { "click": "hyper+space", "search": "hyper+backspace", "window": "hyper+tab", "picker": "hyper+/" },
+  "hotkeys": { "click": "hyper+space", "search": "hyper+backspace", "window": "hyper+tab", "picker": "hyper+j" },
   "windowPins": { "c": "com.google.Chrome", "s": "com.tinyspeck.slackmacgap", "t": "com.mitchellh.ghostty" },
   "clickStrategy": { "com.example.app": "mouse" },
   "restoreMousePosition": true,
@@ -140,6 +140,10 @@ The diagnostics run inside the app bundle, so they use the app's Accessibility p
 - `make dump APPNAME=Slack`: list the click targets in Slack's focused window, with scan times.
 - `make windows`: list windows with their window-mode labels.
 - `TypeMouse --visible`: list the windows the window picker labels. Run it with `open` and `--out FILE`, like `make dump`.
+- `TypeMouse --post-key hyper+j`: send a synthetic key press, to test a hotkey end to end.
+- `TypeMouse --keylog 30`: print each key press and its modifiers for 30 seconds.
+
+If a hotkey does nothing, another app can own it. macOS does not report a conflict when two apps register the same hotkey.
 - The log is at `~/Library/Logs/TypeMouse/typemouse.log`. It records each scan time and each click.
 
 ## How it works
