@@ -102,43 +102,6 @@ final class GeometryTests: XCTestCase {
     }
 }
 
-final class WindowLabelerTests: XCTestCase {
-    let suffix = Array("asdfghjkl")
-
-    func testNameLettersAndMultipleWindows() {
-        let apps = [WindowLabeler.App(id: "chrome", name: "Google Chrome", windowCount: 3),
-                    WindowLabeler.App(id: "slack", name: "Slack", windowCount: 1)]
-        let r = WindowLabeler.assign(apps: apps, pins: [:], suffixAlphabet: suffix)
-        XCTAssertEqual(r["slack"], ["s"])
-        XCTAssertEqual(r["chrome"], ["ga", "gs", "gd"])
-    }
-
-    func testPinsWinAndAreReserved() {
-        let apps = [WindowLabeler.App(id: "chrome", name: "Google Chrome", windowCount: 1),
-                    WindowLabeler.App(id: "ghostty", name: "Ghostty", windowCount: 1)]
-        // "g" is pinned to an app that is not running. Neither app may take it.
-        let r = WindowLabeler.assign(apps: apps, pins: ["c": "chrome", "g": "notrunning"], suffixAlphabet: suffix)
-        XCTAssertEqual(r["chrome"], ["c"])
-        XCTAssertEqual(r["ghostty"], ["h"])
-    }
-
-    func testStableRegardlessOfInputOrder() {
-        let a = WindowLabeler.App(id: "safari", name: "Safari", windowCount: 1)
-        let b = WindowLabeler.App(id: "slack", name: "Slack", windowCount: 1)
-        let r1 = WindowLabeler.assign(apps: [a, b], pins: [:], suffixAlphabet: suffix)
-        let r2 = WindowLabeler.assign(apps: [b, a], pins: [:], suffixAlphabet: suffix)
-        XCTAssertEqual(r1, r2)
-    }
-
-    func testAllLabelsPrefixFree() {
-        let apps = (0..<30).map { WindowLabeler.App(id: "app\($0)", name: "App \($0)", windowCount: $0 % 4) }
-        let r = WindowLabeler.assign(apps: apps, pins: [:], suffixAlphabet: suffix)
-        let labels = r.values.flatMap { $0 }
-        XCTAssertEqual(Set(labels).count, labels.count)
-        for x in labels { for y in labels where x != y { XCTAssertFalse(y.hasPrefix(x)) } }
-    }
-}
-
 final class HotkeyAndConfigTests: XCTestCase {
     func testHotkeyParsing() {
         let h = HotkeySpec("hyper+space")!
@@ -308,6 +271,27 @@ final class PickerLabelsTests: XCTestCase {
         let r = PickerLabels.assign([item(1, "Google Chrome"), item(2, "Ghostty")],
                                     pins: ["c": "google chrome"], windowKeys: keys)
         XCTAssertEqual(r, [1: "c", 2: "g"])
+    }
+
+    func testPinnedLetterBelongsToThePinnedApp() {
+        let r = PickerLabels.assign([item(1, "Google Chrome"), item(2, "Cursor"), item(3, "Calendar")],
+                                    pins: ["c": "google chrome"], windowKeys: keys)
+        XCTAssertEqual(r[1], "c")
+        XCTAssertEqual(r[2], "u") // Cursor skips the pinned c
+        XCTAssertEqual(r[3], "a") // Calendar skips the pinned c
+    }
+
+    func testMovedAppContinuesFromItsNewLetter() {
+        // Cursor and Ulysses share "u" once "c" is pinned. Cursor continues with "r", not "u".
+        let r = PickerLabels.assign([item(1, "Google Chrome"), item(2, "Cursor"), item(3, "Ulysses")],
+                                    pins: ["c": "google chrome"], windowKeys: keys)
+        XCTAssertEqual(r[2], "ur")
+        XCTAssertEqual(r[3], "ul")
+    }
+
+    func testPinOfAnAbsentAppReservesNothing() {
+        let r = PickerLabels.assign([item(1, "Cursor")], pins: ["c": "google chrome"], windowKeys: keys)
+        XCTAssertEqual(r[1], "c")
     }
 
     func testNamesStartingWithDigits() {

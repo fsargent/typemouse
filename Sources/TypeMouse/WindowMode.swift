@@ -126,25 +126,12 @@ final class WindowMode {
             }
         }
 
-        // Labels: group rows by app, keeping MRU order inside each app.
-        var order: [String] = []
-        var count: [String: Int] = [:]
-        var names: [String: String] = [:]
-        for r in rows {
-            let id = Self.appID(r)
-            if count[id] == nil { order.append(id) }
-            count[id, default: 0] += 1
-            names[id] = r.appName
-        }
-        let apps = order.map { WindowLabeler.App(id: $0, name: names[$0] ?? $0, windowCount: count[$0] ?? 0) }
-        let labels = WindowLabeler.assign(apps: apps, pins: config.pins, suffixAlphabet: config.hintAlphabet)
-        var used: [String: Int] = [:]
-        for i in rows.indices {
-            let id = Self.appID(rows[i])
-            let n = used[id, default: 0]
-            used[id] = n + 1
-            rows[i].label = labels[id].flatMap { $0.indices.contains(n) ? $0[n] : nil } ?? ""
-        }
+        // Same name-based labels as the window picker: Slack is "s", Slack and Safari are "sl" and "sa".
+        // Rows without a window (apps to launch or activate) get a stand-in ID.
+        let ids = rows.indices.map { rows[$0].info?.id ?? (UInt32.max - UInt32($0)) }
+        let items = rows.indices.map { PickerLabels.Item(windowID: ids[$0], appID: Self.appID(rows[$0]), appName: rows[$0].appName) }
+        let labels = PickerLabels.assign(items, pins: config.pins, windowKeys: config.hintAlphabet)
+        for i in rows.indices { rows[i].label = labels[ids[i]] ?? "" }
         return rows
     }
 
@@ -349,7 +336,7 @@ final class WindowPanel {
         h.layer?.cornerRadius = 6
         if selected { h.layer?.backgroundColor = NSColor.selectedContentBackgroundColor.withAlphaComponent(0.6).cgColor }
         NSLayoutConstraint.activate([
-            label.widthAnchor.constraint(equalToConstant: 38),
+            label.widthAnchor.constraint(equalToConstant: 48),
             icon.widthAnchor.constraint(equalToConstant: 20),
             icon.heightAnchor.constraint(equalToConstant: 20),
             app.widthAnchor.constraint(equalToConstant: 150),

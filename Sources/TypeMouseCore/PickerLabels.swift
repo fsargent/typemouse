@@ -16,7 +16,8 @@ public enum PickerLabels {
     }
 
     /// - Parameters:
-    ///   - pins: letter -> app id. A pinned app uses its letter instead of its first letter.
+    ///   - pins: letter -> app id. A pinned app uses its letter instead of its first letter, and owns it:
+    ///     other apps skip pinned letters and use the next letter of their name.
     ///   - windowKeys: characters that tell apart several windows of one app (the hint characters).
     /// - Returns: window id -> label.
     public static func assign(_ items: [Item], pins: [Character: String] = [:], windowKeys: [Character]) -> [UInt32: String] {
@@ -32,10 +33,14 @@ public enum PickerLabels {
         }
         for id in windows.keys { windows[id]!.sort() }
 
-        // First key per app, then apps grouped by that key.
+        // First key per app, then apps grouped by that key. Pinned letters belong to their app only.
+        let reserved = Set(pinnedKey.filter { windows[$0.key] != nil }.values)
         var buckets: [Character: [String]] = [:]
         for id in windows.keys {
-            let key = pinnedKey[id] ?? letters(names[id] ?? id).first ?? windowKeys.first ?? "a"
+            let key = pinnedKey[id]
+                ?? letters(names[id] ?? id).first(where: { !reserved.contains($0) })
+                ?? Array("abcdefghijklmnopqrstuvwxyz").first(where: { !reserved.contains($0) })
+                ?? "a"
             buckets[key, default: []].append(id)
         }
 
@@ -56,8 +61,10 @@ public enum PickerLabels {
                 // Several apps share the letter: each takes the next unused letter of its name.
                 var used = Set<Character>()
                 for app in sortedApps {
+                    // Letters after the key's place in the name: "Cursor" moved to "u" continues with "r".
                     let name = letters(names[app] ?? app)
-                    let candidates = Array(name.dropFirst()) + windowKeys + Array("abcdefghijklmnopqrstuvwxyz")
+                    let rest = name.firstIndex(of: key).map { Array(name[(name.index(after: $0))...]) } ?? name
+                    let candidates = rest + windowKeys + Array("abcdefghijklmnopqrstuvwxyz")
                     guard let second = candidates.first(where: { !used.contains($0) }) else { continue }
                     used.insert(second)
                     let prefix = String(key) + String(second)

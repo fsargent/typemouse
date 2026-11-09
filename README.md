@@ -57,7 +57,7 @@ Labels come from app names, so they stay the same when windows move:
 - An app with one visible window gets its first letter. Slack is `S`.
 - Apps that share a first letter get two letters from their names. Slack and Safari are `SL` and `SA`.
 - Several windows of one app get the app letter plus a hint character, oldest window first.
-- `windowPins` in the config overrides an app's letter.
+- `windowPins` in the config gives an app a letter and reserves it. Other apps skip that letter and use the next letter of their name.
 
 | Key | Action |
 |---|---|
@@ -67,8 +67,7 @@ Labels come from app names, so they stay the same when windows move:
 
 ### Window mode keys
 
-Each app gets one stable letter. An app with one window uses one key. An app with several windows uses two keys.
-The second key comes from the hint characters, in most-recently-used order.
+Window mode uses the same labels as the window picker.
 
 | Key | Action |
 |---|---|

@@ -149,21 +149,12 @@ enum Diagnostics {
         let list = WindowProvider.shared.list()
         let elapsed = Date().timeIntervalSince(start)
         let config = ConfigStore.load()
-        var order: [String] = []
-        var counts: [String: Int] = [:]
-        var names: [String: String] = [:]
-        for w in list {
-            if counts[w.appID] == nil { order.append(w.appID) }
-            counts[w.appID, default: 0] += 1
-            names[w.appID] = w.appName
+        let items = list.enumerated().map { i, w in
+            PickerLabels.Item(windowID: w.id ?? (UInt32.max - UInt32(i)), appID: w.appID, appName: w.appName)
         }
-        let labels = WindowLabeler.assign(apps: order.map { .init(id: $0, name: names[$0]!, windowCount: counts[$0]!) },
-                                          pins: config.pins, suffixAlphabet: config.hintAlphabet)
-        var used: [String: Int] = [:]
-        for w in list {
-            let n = used[w.appID, default: 0]
-            used[w.appID] = n + 1
-            let label = labels[w.appID].flatMap { $0.indices.contains(n) ? $0[n] : nil } ?? "-"
+        let labels = PickerLabels.assign(items, pins: config.pins, windowKeys: config.hintAlphabet)
+        for (item, w) in zip(items, list) {
+            let label = labels[item.windowID] ?? "-"
             print("\(label.padding(toLength: 4, withPad: " ", startingAt: 0)) \(w.appName.padding(toLength: 22, withPad: " ", startingAt: 0)) \(w.title)\(w.minimized ? "  (minimized)" : "")  [\(w.id.map(String.init) ?? "?")]")
         }
         print(String(format: "\n%d windows in %.0f ms", list.count, elapsed * 1000))
