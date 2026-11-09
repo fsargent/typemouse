@@ -52,7 +52,12 @@ Open a menu-bar menu with one label, then press the hotkey again to pick an item
 
 The window picker labels each window that is at least partly visible on the current Space.
 The label sits in the middle of the largest part of the window that shows. Its size is about half of that part, so big windows get big labels.
-Labels follow screen order, top to bottom, then left to right.
+Labels come from app names, so they stay the same when windows move:
+
+- An app with one visible window gets its first letter. Slack is `S`.
+- Apps that share a first letter get two letters from their names. Slack and Safari are `SL` and `SA`.
+- Several windows of one app get the app letter plus a hint character, oldest window first.
+- `windowPins` in the config overrides an app's letter.
 
 | Key | Action |
 |---|---|

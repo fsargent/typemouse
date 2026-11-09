@@ -277,3 +277,57 @@ final class HotkeyFormattingTests: XCTestCase {
     }
 }
 
+final class PickerLabelsTests: XCTestCase {
+    let keys = Array("fjdkslagh")
+
+    func item(_ id: UInt32, _ app: String) -> PickerLabels.Item {
+        .init(windowID: id, appID: app.lowercased(), appName: app)
+    }
+
+    func testUniqueFirstLetterIsOneKey() {
+        let r = PickerLabels.assign([item(1, "Slack"), item(2, "Ghostty")], windowKeys: keys)
+        XCTAssertEqual(r, [1: "s", 2: "g"])
+    }
+
+    func testSharedFirstLetterUsesNextLetters() {
+        let r = PickerLabels.assign([item(1, "Slack"), item(2, "Safari"), item(3, "Ghostty")], windowKeys: keys)
+        XCTAssertEqual(r[1], "sl")
+        XCTAssertEqual(r[2], "sa")
+        XCTAssertEqual(r[3], "g")
+    }
+
+    func testSeveralWindowsOfOneAppAreStableByWindowID() {
+        let a = PickerLabels.assign([item(30, "Chrome"), item(10, "Chrome")], windowKeys: keys)
+        let b = PickerLabels.assign([item(10, "Chrome"), item(30, "Chrome")], windowKeys: keys)
+        XCTAssertEqual(a, b)
+        XCTAssertEqual(a[10], "cf")
+        XCTAssertEqual(a[30], "cj")
+    }
+
+    func testPinsOverrideTheFirstLetter() {
+        let r = PickerLabels.assign([item(1, "Google Chrome"), item(2, "Ghostty")],
+                                    pins: ["c": "google chrome"], windowKeys: keys)
+        XCTAssertEqual(r, [1: "c", 2: "g"])
+    }
+
+    func testNamesStartingWithDigits() {
+        XCTAssertEqual(PickerLabels.assign([item(1, "1Password")], windowKeys: keys), [1: "p"])
+    }
+
+    func testSharedLetterWithSeveralWindows() {
+        let r = PickerLabels.assign([item(1, "Slack"), item(2, "Safari"), item(3, "Safari")], windowKeys: keys)
+        XCTAssertEqual(r[1], "sl")
+        XCTAssertEqual(r[2], "saf")
+        XCTAssertEqual(r[3], "saj")
+    }
+
+    func testAlwaysPrefixFree() {
+        let names = ["Slack", "Safari", "Signal", "Spotify", "Chrome", "Chrome", "Calendar", "Code", "Ghostty", "Mail", "Messages"]
+        let items = names.enumerated().map { item(UInt32($0.offset + 1), $0.element) }
+        let labels = Array(PickerLabels.assign(items, windowKeys: keys).values)
+        XCTAssertEqual(labels.count, items.count)
+        XCTAssertEqual(Set(labels).count, labels.count)
+        for x in labels { for y in labels where x != y { XCTAssertFalse(y.hasPrefix(x), "\(x) / \(y)") } }
+    }
+}
+

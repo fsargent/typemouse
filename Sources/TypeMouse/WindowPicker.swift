@@ -34,7 +34,7 @@ final class WindowPicker {
         entries = Self.visibleWindows()
         Log.info(String(format: "picker: %d visible windows in %.0f ms", entries.count, Date().timeIntervalSince(start) * 1000))
         guard !entries.isEmpty else { exit(); return }
-        labels = Hints.generate(count: entries.count, alphabet: config.hintAlphabet)
+        labels = Self.labels(for: entries, config: config)
         render()
     }
 
@@ -78,6 +78,15 @@ final class WindowPicker {
                              fontSize: Self.fontSize(for: labels[i], in: entries[i].area))
         }
         overlay.render(specs)
+    }
+
+    /// Name-based, stable labels: Slack is "s", Slack and Safari together are "sl" and "sa".
+    static func labels(for entries: [Entry], config: Config) -> [String] {
+        let items = entries.map { e in
+            PickerLabels.Item(windowID: e.info.id ?? 0, appID: e.info.appID, appName: e.info.appName)
+        }
+        let byWindow = PickerLabels.assign(items, pins: config.pins, windowKeys: config.hintAlphabet)
+        return entries.map { byWindow[$0.info.id ?? 0] ?? "" }
     }
 
     /// Sizes the label box to about half of the window's visible area.

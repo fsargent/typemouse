@@ -91,7 +91,7 @@ enum Diagnostics {
         AX.setGlobalTimeout(0.25)
         let start = Date()
         let entries = WindowPicker.visibleWindows()
-        let labels = Hints.generate(count: entries.count, alphabet: ConfigStore.load().hintAlphabet)
+        let labels = WindowPicker.labels(for: entries, config: ConfigStore.load())
         for (e, l) in zip(entries, labels) {
             print("\(l.padding(toLength: 3, withPad: " ", startingAt: 0)) \(e.info.appName.padding(toLength: 22, withPad: " ", startingAt: 0)) at \(Int(e.point.x)),\(Int(e.point.y)) \(Int(WindowPicker.fontSize(for: l, in: e.area)))pt  \(e.info.window == nil ? "(app only)" : e.info.title)")
         }
