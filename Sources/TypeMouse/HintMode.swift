@@ -45,7 +45,7 @@ final class HintMode {
         guard !targets.isEmpty else {
             overlay.render([], banner: "No clickable elements in \(app.localizedName ?? "this app")")
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
-                if self?.targets.isEmpty == true { self?.exit() }
+                if self?.targets.isEmpty == true { self?.exit("no targets") }
             }
             return
         }
@@ -54,8 +54,9 @@ final class HintMode {
         if search { enterSearch() } else { phase = .labels; render() }
     }
 
-    func exit() {
+    func exit(_ reason: String = "done") {
         guard isActive else { return }
+        Log.info("click mode closed: \(reason)")
         isActive = false
         capture.setActive(false)
         overlay.hide()
@@ -65,12 +66,12 @@ final class HintMode {
 
     /// Exit when the user switches apps some other way.
     func appDidActivate(_ other: NSRunningApplication) {
-        if isActive, other.processIdentifier != app?.processIdentifier { exit() }
+        if isActive, other.processIdentifier != app?.processIdentifier { exit("\(other.localizedName ?? "?") became active") }
     }
 
     func handle(_ key: KeyEvent) {
         guard isActive else { return }
-        if key.special == .escape { exit(); return }
+        if key.special == .escape { exit("escape"); return }
         guard !targets.isEmpty else { return }
         switch phase {
         case .labels: handleLabels(key)

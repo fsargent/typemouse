@@ -76,16 +76,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func registerHotkeys() {
         hotkeys.unregisterAll()
-        let pairs: [([String], () -> Void)] = [
-            (config.hotkeys.click, { [weak self] in self?.toggleHints(search: false) }),
-            (config.hotkeys.search, { [weak self] in self?.toggleHints(search: true) }),
-            (config.hotkeys.window, { [weak self] in self?.toggleWindows() }),
-            (config.hotkeys.picker, { [weak self] in self?.togglePicker() }),
+        let pairs: [(String, [String], () -> Void)] = [
+            ("click", config.hotkeys.click, { [weak self] in self?.toggleHints(search: false) }),
+            ("search", config.hotkeys.search, { [weak self] in self?.toggleHints(search: true) }),
+            ("window", config.hotkeys.window, { [weak self] in self?.toggleWindows() }),
+            ("picker", config.hotkeys.picker, { [weak self] in self?.togglePicker() }),
         ]
-        for (strings, action) in pairs {
+        for (name, strings, action) in pairs {
             for string in strings {
                 guard let spec = HotkeySpec(string) else { Log.info("bad hotkey \"\(string)\""); continue }
-                _ = hotkeys.register(spec, action)
+                _ = hotkeys.register(spec) {
+                    // Logged, so a press that never arrives is visible: it leaves no line.
+                    Log.info("hotkey \(name) (\(string)) in \(NSWorkspace.shared.frontmostApplication?.localizedName ?? "?")")
+                    action()
+                }
             }
         }
     }
@@ -94,7 +98,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard capture.active || startCapture(prompt: true) else { return }
         windows.exit()
         picker.exit()
-        if hints.isActive { hints.exit() } else { hints.start(search: search) }
+        if hints.isActive { hints.exit("hotkey pressed again") } else { hints.start(search: search) }
     }
 
     private func toggleWindows() {
