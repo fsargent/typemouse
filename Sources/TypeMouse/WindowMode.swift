@@ -328,7 +328,7 @@ final class WindowPanel {
         title.lineBreakMode = .byTruncatingTail
         title.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
-        let h = NSStackView(views: [label, icon, app, title])
+        let h = NSStackView(views: [icon, app, label, title])
         h.orientation = .horizontal
         h.spacing = 10
         h.edgeInsets = NSEdgeInsets(top: 0, left: 6, bottom: 0, right: 6)
