@@ -51,7 +51,8 @@ Open a menu-bar menu with one label, then press the hotkey again to pick an item
 ### Window picker keys
 
 The window picker labels each window that is at least partly visible on the current Space.
-The label sits on the visible part of the window. Labels follow screen order, top to bottom, then left to right.
+The label sits in the middle of the largest part of the window that shows. Its size is about half of that part, so big windows get big labels.
+Labels follow screen order, top to bottom, then left to right.
 
 | Key | Action |
 |---|---|

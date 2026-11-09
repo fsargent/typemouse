@@ -9,6 +9,8 @@ struct LabelSpec {
     var typedCount: Int
     var rect: CGRect // AX coordinates
     var style: Style
+    /// Overrides the overlay's font size for this label.
+    var fontSize: CGFloat? = nil
 }
 
 /// Click-through, transparent windows (one per screen) that draw labels with Core Animation.
@@ -82,7 +84,10 @@ final class Overlay {
     // MARK: - Layers
 
     private func label(_ spec: LabelSpec, in rect: CGRect, bounds: CGRect, scale: CGFloat) -> CALayer {
-        let font = NSFont.monospacedSystemFont(ofSize: fontSize, weight: .bold)
+        let pointSize = spec.fontSize ?? fontSize
+        let font = NSFont.monospacedSystemFont(ofSize: pointSize, weight: .bold)
+        // Padding, corners, border, and shadow grow with the font. At 12 pt they match the original look.
+        let k = max(1, pointSize / 12)
         let highlighted = spec.style == .highlighted
         let fg = highlighted ? NSColor.white : NSColor.black
         let s = NSMutableAttributedString(string: spec.text.uppercased(), attributes: [.font: font, .foregroundColor: fg])
@@ -91,7 +96,7 @@ final class Overlay {
                            range: NSRange(location: 0, length: min(spec.typedCount, spec.text.count)))
         }
         let textSize = s.size()
-        let pad = CGSize(width: 4, height: 1)
+        let pad = CGSize(width: 4 * k, height: 1 * k)
         let size = CGSize(width: ceil(textSize.width) + pad.width * 2, height: ceil(textSize.height) + pad.height * 2)
 
         // Small targets: centered. Wide targets: at the left edge, so labels do not land on text.
@@ -104,12 +109,12 @@ final class Overlay {
         let box = CALayer()
         box.frame = CGRect(origin: origin, size: size)
         box.backgroundColor = (highlighted ? NSColor.systemBlue : NSColor(calibratedRed: 1, green: 0.85, blue: 0.2, alpha: 1)).cgColor
-        box.cornerRadius = 3
-        box.borderWidth = 0.5
+        box.cornerRadius = 3 * k
+        box.borderWidth = min(0.5 * k, 3)
         box.borderColor = NSColor.black.withAlphaComponent(0.5).cgColor
         box.shadowOpacity = 0.3
-        box.shadowRadius = 1.5
-        box.shadowOffset = CGSize(width: 0, height: -1)
+        box.shadowRadius = 1.5 * k
+        box.shadowOffset = CGSize(width: 0, height: -1 * k)
 
         let text = CATextLayer()
         text.string = s

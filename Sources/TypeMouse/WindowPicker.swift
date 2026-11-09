@@ -7,6 +7,7 @@ final class WindowPicker {
     struct Entry {
         let info: WindowInfo
         let point: CGPoint // AX coordinates
+        let area: CGRect   // the window's largest visible rectangle, AX coordinates
     }
 
     private(set) var isActive = false
@@ -34,7 +35,6 @@ final class WindowPicker {
         Log.info(String(format: "picker: %d visible windows in %.0f ms", entries.count, Date().timeIntervalSince(start) * 1000))
         guard !entries.isEmpty else { exit(); return }
         labels = Hints.generate(count: entries.count, alphabet: config.hintAlphabet)
-        overlay.fontSize = 34
         render()
     }
 
@@ -74,9 +74,18 @@ final class WindowPicker {
             guard labels[i].hasPrefix(typed) else { return nil }
             let p = entries[i].point
             return LabelSpec(text: labels[i], typedCount: typed.count,
-                             rect: CGRect(x: p.x - 1, y: p.y - 1, width: 2, height: 2), style: .normal)
+                             rect: CGRect(x: p.x - 1, y: p.y - 1, width: 2, height: 2), style: .normal,
+                             fontSize: Self.fontSize(for: labels[i], in: entries[i].area))
         }
         overlay.render(specs)
+    }
+
+    /// Sizes the label box to about half of the window's visible area.
+    /// A bold monospaced glyph is about 0.6 em wide, and the box is about 1.2 em tall.
+    static func fontSize(for label: String, in area: CGRect) -> CGFloat {
+        let byHeight = area.height * 0.5 / 1.2
+        let byWidth = area.width * 0.5 / (0.6 * CGFloat(max(1, label.count)) + 0.7)
+        return min(max(min(byHeight, byWidth), 18), 600)
     }
 
     /// On-screen windows of the current Space, front to back, with the part that shows.
@@ -96,19 +105,20 @@ final class WindowPicker {
             windows.append((id, pid, frame)) // CG window bounds use the same top-left origin as AX
         }
 
-        let points = Visibility.labelPoints(windows.map { .init(id: $0.id, frame: $0.frame) })
+        let placements = Visibility.placements(windows.map { .init(id: $0.id, frame: $0.frame) })
         // Focusing needs the AX window, so match by window ID.
         let axWindows = Dictionary(WindowProvider.shared.list(only: Set(windows.map(\.pid))).compactMap { w in w.id.map { ($0, w) } },
                                    uniquingKeysWith: { a, _ in a })
 
         var entries: [Entry] = []
         for w in windows {
-            guard let point = points[w.id] else { continue }
+            guard let placement = placements[w.id] else { continue }
             if let info = axWindows[w.id] {
-                entries.append(Entry(info: info, point: point))
+                entries.append(Entry(info: info, point: placement.point, area: placement.area))
             } else if let app = NSRunningApplication(processIdentifier: w.pid), app.activationPolicy == .regular {
                 // No AX match (some apps hide windows from AX). Activating the app is the best we can do.
-                entries.append(Entry(info: WindowInfo(app: app, window: nil, id: w.id, title: "", minimized: false), point: point))
+                entries.append(Entry(info: WindowInfo(app: app, window: nil, id: w.id, title: "", minimized: false),
+                                     point: placement.point, area: placement.area))
             }
         }
         // Top to bottom, then left to right, so labels read in screen order.

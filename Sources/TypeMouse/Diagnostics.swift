@@ -93,7 +93,7 @@ enum Diagnostics {
         let entries = WindowPicker.visibleWindows()
         let labels = Hints.generate(count: entries.count, alphabet: ConfigStore.load().hintAlphabet)
         for (e, l) in zip(entries, labels) {
-            print("\(l.padding(toLength: 3, withPad: " ", startingAt: 0)) \(e.info.appName.padding(toLength: 22, withPad: " ", startingAt: 0)) at \(Int(e.point.x)),\(Int(e.point.y))  \(e.info.window == nil ? "(app only)" : e.info.title)")
+            print("\(l.padding(toLength: 3, withPad: " ", startingAt: 0)) \(e.info.appName.padding(toLength: 22, withPad: " ", startingAt: 0)) at \(Int(e.point.x)),\(Int(e.point.y)) \(Int(WindowPicker.fontSize(for: l, in: e.area)))pt  \(e.info.window == nil ? "(app only)" : e.info.title)")
         }
         print(String(format: "\n%d visible windows in %.0f ms", entries.count, Date().timeIntervalSince(start) * 1000))
         return 0

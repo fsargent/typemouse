@@ -214,6 +214,35 @@ final class VisibilityTests: XCTestCase {
         XCTAssertFalse(front.frame.contains(p))
     }
 
+    func testAreaIsTheLargestUncoveredRectangle() {
+        // The front window covers the left 3/4, so the free area is the right quarter.
+        let front = Visibility.Window(id: 1, frame: CGRect(x: 0, y: 0, width: 300, height: 400))
+        let back = Visibility.Window(id: 2, frame: CGRect(x: 0, y: 0, width: 400, height: 400))
+        let area = Visibility.placements([front, back])[2]!.area
+        XCTAssertEqual(area.minX, 300, accuracy: 17)
+        XCTAssertEqual(area.width, 100, accuracy: 17)
+        XCTAssertEqual(area.height, 400, accuracy: 1)
+        XCTAssertFalse(area.insetBy(dx: 1, dy: 1).intersects(front.frame))
+    }
+
+    func testFullyVisibleAreaIsTheWholeWindow() {
+        let frame = CGRect(x: 10, y: 20, width: 480, height: 240)
+        let p = Visibility.placements([.init(id: 1, frame: frame)])[1]!
+        XCTAssertEqual(p.area, frame)
+        XCTAssertEqual(p.point, CGPoint(x: frame.midX, y: frame.midY))
+    }
+
+    func testLargestRectangle() {
+        let grid: [[Bool]] = [
+            [true, true, false, false],
+            [true, true, true, true],
+            [true, true, true, true],
+        ]
+        // Rows 1-2, all four columns (8 cells) beats columns 0-1, all rows (6 cells).
+        XCTAssertEqual(Visibility.largestRectangle(grid), .init(minRow: 1, maxRow: 2, minCol: 0, maxCol: 3))
+        XCTAssertNil(Visibility.largestRectangle([[false]]))
+    }
+
     func testDefaultPickerHotkey() {
         XCTAssertEqual(Config().hotkeys.picker, ["hyper+j"])
         XCTAssertEqual(Config().hotkeys.search, ["hyper+k"])
