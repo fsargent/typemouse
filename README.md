@@ -61,7 +61,7 @@ Labels come from app names, so they stay the same when windows move:
 
 | Key | Action |
 |---|---|
-| label | Focus that window |
+| label | Focus that window, then start click mode in it |
 | `Backspace` | Delete the last typed key |
 | `Esc` or the hotkey again | Exit |
 
@@ -103,6 +103,7 @@ TypeMouse writes the defaults on first launch. Every key is optional.
   "windowPins": { "c": "com.google.Chrome", "s": "com.tinyspeck.slackmacgap", "t": "com.mitchellh.ghostty" },
   "clickStrategy": { "com.example.app": "mouse" },
   "restoreMousePosition": true,
+  "clickAfterPicker": true,
   "labelFontSize": 12,
   "enhancedUserInterfaceApps": ["com.google.Chrome", "com.brave.Browser", "…"]
 }

@@ -64,6 +64,8 @@ public struct Config: Codable, Equatable {
     public var clickStrategy: [String: ClickStrategy] = [:]
     /// Put the mouse back where it was after a synthetic click.
     public var restoreMousePosition = true
+    /// After the window picker focuses a window, start click mode in it.
+    public var clickAfterPicker = true
     public var labelFontSize: Double = 12
 
     /// Chromium browsers build the web page tree only when AXEnhancedUserInterface is on.
@@ -88,6 +90,7 @@ public struct Config: Codable, Equatable {
         windowPins = try c.decodeIfPresent([String: String].self, forKey: .windowPins) ?? d.windowPins
         clickStrategy = try c.decodeIfPresent([String: ClickStrategy].self, forKey: .clickStrategy) ?? d.clickStrategy
         restoreMousePosition = try c.decodeIfPresent(Bool.self, forKey: .restoreMousePosition) ?? d.restoreMousePosition
+        clickAfterPicker = try c.decodeIfPresent(Bool.self, forKey: .clickAfterPicker) ?? d.clickAfterPicker
         labelFontSize = try c.decodeIfPresent(Double.self, forKey: .labelFontSize) ?? d.labelFontSize
         enhancedUserInterfaceApps = try c.decodeIfPresent([String].self, forKey: .enhancedUserInterfaceApps) ?? d.enhancedUserInterfaceApps
     }

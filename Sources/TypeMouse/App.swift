@@ -29,6 +29,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         setUpStatusItem()
         registerHotkeys()
         capture.onKey = { [weak self] in self?.route($0) }
+        picker.onPicked = { [weak self] info in
+            guard let self, self.config.clickAfterPicker else { return }
+            self.startClickModeWhenFocused(info)
+        }
 
         if !startCapture(prompt: true) {
             // Poll until the user grants Accessibility permission in System Settings.
@@ -106,6 +110,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hints.exit()
         picker.exit()
         if windows.isActive { windows.hotkeyAgain() } else { windows.start() }
+    }
+
+    /// Click mode scans the front app's focused window, so wait until the picked window has focus.
+    /// Checks every 30 ms for up to 0.8 s, then starts click mode anyway.
+    private func startClickModeWhenFocused(_ info: WindowInfo, deadline: Date = Date().addingTimeInterval(0.8)) {
+        let pid = info.app.processIdentifier
+        let front = NSWorkspace.shared.frontmostApplication?.processIdentifier == pid
+        let focused = info.id == nil
+            || AXUIElementCreateApplication(pid).element(kAXFocusedWindowAttribute)?.windowID == info.id
+        if (front && focused) || Date() >= deadline {
+            guard !hints.isActive, !windows.isActive, !picker.isActive else { return }
+            hints.start(search: false)
+            return
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) { [weak self] in
+            self?.startClickModeWhenFocused(info, deadline: deadline)
+        }
     }
 
     private func togglePicker() {

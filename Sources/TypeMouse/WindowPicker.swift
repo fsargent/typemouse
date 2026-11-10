@@ -11,6 +11,8 @@ final class WindowPicker {
     }
 
     private(set) var isActive = false
+    /// Called after the picker focuses a window.
+    var onPicked: ((WindowInfo) -> Void)?
     private var entries: [Entry] = []
     private var labels: [String] = []
     private var typed = ""
@@ -63,6 +65,7 @@ final class WindowPicker {
             let info = entries[hits[0]].info
             exit()
             WindowActions.focus(info)
+            onPicked?(info)
             return
         }
         typed = next

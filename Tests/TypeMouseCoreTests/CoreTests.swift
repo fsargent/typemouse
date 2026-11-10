@@ -140,6 +140,11 @@ final class HotkeyAndConfigTests: XCTestCase {
         XCTAssertTrue(text.contains(#""hyper+backspace""#), text)
     }
 
+    func testClickAfterPickerDefaultsOn() throws {
+        XCTAssertTrue(Config().clickAfterPicker)
+        XCTAssertFalse(try Config.decode(Data(#"{"clickAfterPicker": false}"#.utf8)).clickAfterPicker)
+    }
+
     func testRoundTrip() throws {
         var c = Config()
         c.clickStrategy = ["com.example": .mouse]

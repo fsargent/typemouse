@@ -202,6 +202,9 @@ struct SettingsView: View {
             }
 
             Section("Behavior") {
+                Toggle("Start click mode after the window picker", isOn: Binding(
+                    get: { model.config.clickAfterPicker },
+                    set: { model.config.clickAfterPicker = $0; model.commit() }))
                 Toggle("Put the mouse back after a click", isOn: Binding(
                     get: { model.config.restoreMousePosition },
                     set: { model.config.restoreMousePosition = $0; model.commit() }))
