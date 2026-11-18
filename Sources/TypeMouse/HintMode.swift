@@ -101,6 +101,12 @@ final class HintMode {
             chainMode.toggle()
             render()
             return
+        case .up where chainMode:
+            changeChainDelay(by: 50)
+            return
+        case .down where chainMode:
+            changeChainDelay(by: -50)
+            return
         default: break
         }
         if key.char == "/" { enterSearch(); return }
@@ -117,12 +123,19 @@ final class HintMode {
         render()
     }
 
+    /// Up and Down in chain mode. The new delay is saved, so it also shows in Settings.
+    private func changeChainDelay(by delta: Int) {
+        config.chainDelayMs = min(max(config.chainDelayMs + delta, 0), 5000)
+        ConfigStore.save(config)
+        render()
+    }
+
     private func render() {
         let specs = labels.indices.compactMap { i -> LabelSpec? in
             guard labels[i].hasPrefix(typed) else { return nil }
             return LabelSpec(text: labels[i], typedCount: typed.count, rect: targets[i].frame, style: .normal)
         }
-        overlay.render(specs, banner: chainMode ? "Chain mode · Space to stop" : nil)
+        overlay.render(specs, banner: chainMode ? "Chain mode · \(config.chainDelayMs) ms (↑↓) · Space to stop" : nil)
     }
 
     // MARK: - Search

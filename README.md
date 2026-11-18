@@ -35,6 +35,7 @@ Search has no hotkey by default. Press `/` or `Tab` in click mode to search, or 
 | `⌥` + last label key | Double-click |
 | `⌃⌥` + last label key | Move the mouse only (hover) |
 | `Space` | Turn chain mode on or off. In chain mode, every click is a chain click. |
+| `↑` / `↓` in chain mode | Make the chain click delay 50 ms longer or shorter |
 | `/` or `Tab` | Switch to search |
 | `Backspace` | Delete the last typed key |
 | `Esc` or the hotkey again | Exit |
