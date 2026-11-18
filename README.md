@@ -29,24 +29,29 @@ Search has no hotkey by default. Press `/` or `Tab` in click mode to search, or 
 | Key | Action |
 |---|---|
 | label | Click |
-| `⇧` + last label key | Chain click: click, wait 250 ms (`chainDelayMs`), then show new labels and stay in click mode |
-| `⌃` + last label key | Right-click |
-| `⌘` + last label key | ⌘-click (for example, open a link in a new tab) |
-| `⌥` + last label key | Double-click |
-| `⌃⌥` + last label key | Move the mouse only (hover) |
+| Shift (⇧) + label | Chain click: click, wait 250 ms (`chainDelayMs`), then show new labels and stay in click mode |
+| Control (⌃) + label | Right-click |
+| Command (⌘) + label | Command-click (for example, open a link in a new tab) |
+| Option (⌥) + label | Double-click |
+| Control (⌃) + Option (⌥) + label | Move the mouse only (hover) |
 | `Space` | Turn chain mode on or off. In chain mode, every click is a chain click. To start in chain mode, set `chainModeByDefault`. |
-| `↑` / `↓` in chain mode | Make the chain click delay 50 ms longer or shorter |
+| Up arrow / Down arrow in chain mode | Make the chain click delay 50 ms longer or shorter |
 | `/` or `Tab` | Switch to search |
 | `Backspace` | Delete the last typed key |
 | `Esc` or the hotkey again | Exit |
 
+To use a modifier, hold it down while you type the label.
+For a two-key label, you only need to hold it for the second key.
+
 Labels go by element type. Buttons get the shortest labels, then text fields, then links, then other elements.
 A browser's own tabs, toolbar, and bookmarks come after the page, and the menu bar comes last.
 Within each type, labels follow reading order.
-Labels of the same length are spread out, so neighbors start with different keys (as in Vimium).
-An icon inside a button, or a card around its link, gets no label of its own (as in Vimium C). Turn this off with `"prioritizeLabels": false` or in Settings.
+To use reading order only, set `"prioritizeLabels": false` or turn it off in Settings.
 
-Shift combines with the other modifiers. For example, `⇧⌘` + label opens a link in a new tab and stays in click mode for the next link.
+Labels of the same length are spread out, so neighbors start with different keys (as in Vimium).
+An icon inside a button, or a card around its link, gets no label of its own (as in Vimium C).
+
+Shift combines with the other modifiers. For example, Shift (⇧) + Command (⌘) + label opens a link in a new tab and stays in click mode for the next link.
 
 If a menu is open, click mode labels only the menu items.
 Open a menu-bar menu with one label, then press the hotkey again to pick an item.
@@ -56,9 +61,9 @@ Open a menu-bar menu with one label, then press the hotkey again to pick an item
 | Key | Action |
 |---|---|
 | text | Filter by title, description, value, or placeholder |
-| `Tab` / `↓` / `⌃N` | Next match |
-| `⇧Tab` / `↑` / `⌃P` | Previous match |
-| `Enter` (with `⇧`, `⌃`, `⌘`, `⌥`) | Click the highlighted match (same modifiers as click mode) |
+| `Tab`, Down arrow, or Control (⌃) + `N` | Next match |
+| Shift (⇧) + `Tab`, Up arrow, or Control (⌃) + `P` | Previous match |
+| `Enter` | Click the highlighted match. Hold the same modifiers as in click mode for the other click types. |
 | `Backspace` on an empty query | Go back to labels |
 
 ### Window picker keys
@@ -86,10 +91,13 @@ Window mode uses the same labels as the window picker. The list shows on every m
 |---|---|
 | label | Focus that window (or launch a pinned app) |
 | `Enter` | Focus the highlighted row. The previous window is highlighted first, so `hyper+l`, `Enter` toggles between two windows. |
-| hotkey again, `Tab`, `↓`, `⌃N` | Next row |
-| `↑`, `⇧Tab`, `⌃P` | Previous row |
+| Hotkey again, `Tab`, Down arrow, or Control (⌃) + `N` | Next row |
+| Up arrow, Shift (⇧) + `Tab`, or Control (⌃) + `P` | Previous row |
 | `/` or any key that is not a label | Fuzzy filter by app name and window title |
-| `⌘W` / `⌘M` / `⌘H` / `⌘Q` | Close / minimize / hide app / quit app for the highlighted row |
+| Command (⌘) + `W` | Close the highlighted window |
+| Command (⌘) + `M` | Minimize the highlighted window |
+| Command (⌘) + `H` | Hide the highlighted window's app |
+| Command (⌘) + `Q` | Quit the highlighted window's app |
 | `Esc` | Exit |
 
 Pin letters to apps so that they never change. A pinned app that is not running shows a "launch" row.
@@ -125,7 +133,8 @@ TypeMouse writes the defaults on first launch. Every key is optional.
 }
 ```
 
-- Hotkey modifiers: `hyper` (⌘⌃⌥⇧), `meh` (⌃⌥⇧), `cmd`, `ctrl`, `opt`, `shift`.
+- Hotkey modifiers: `cmd` (Command, ⌘), `ctrl` (Control, ⌃), `opt` (Option, ⌥), `shift` (Shift, ⇧).
+  `hyper` means all four. `meh` means Control, Option, and Shift.
 - A mode takes one hotkey or a list, for example `"search": ["hyper+o", "hyper+backspace"]`.
 - `[]` or `""` means no hotkey. A missing key uses the default.
 - `clickStrategy`: `auto` (default) uses AXPress, with a mouse click for web content and when AXPress fails. `press` never moves the mouse. `mouse` always sends a mouse click.
