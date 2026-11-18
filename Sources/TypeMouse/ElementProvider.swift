@@ -27,6 +27,9 @@ final class ElementProvider {
         var visited: Int
         var duration: TimeInterval
         var menuOpen: Bool
+        var weakRemoved = 0
+        /// The removed weak targets, for diagnostics.
+        var removed: [Target] = []
     }
 
     /// Roles that are clickable by definition. We skip the extra action-names IPC for these.
@@ -73,6 +76,9 @@ final class ElementProvider {
 
     /// Order labels by element type (buttons, fields, links, other, app UI). Off: reading order only.
     private var prioritize = true
+    /// Weak duplicates removed by the last scan, for the log.
+    private(set) var weakRemoved = 0
+    private var removedTargets: [Target] = []
 
     func collect(app: NSRunningApplication, config: Config) -> Result {
         let start = Date()
@@ -276,7 +282,12 @@ final class ElementProvider {
     // MARK: - Results
 
     private func finish(start: Date, menuOpen: Bool) -> Result {
-        let kept = Self.dedupe(found)
+        let deduped = Self.dedupe(found)
+        let keep = LabelPriority.removeWeakDuplicates(deduped.map { .init(frame: $0.frame, role: $0.role) })
+        let kept = keep.map { deduped[$0] }
+        weakRemoved = deduped.count - kept.count
+        let keptSet = Set(keep)
+        removedTargets = deduped.indices.filter { !keptSet.contains($0) }.map { deduped[$0] }
         // Earlier targets get the shorter, home-row labels.
         let hasWeb = kept.contains(where: \.inWebArea)
         let prioritize = self.prioritize
@@ -288,7 +299,8 @@ final class ElementProvider {
             let a = tier($0), b = tier($1)
             return a != b ? a < b : Geometry.readingOrder($0.frame, $1.frame)
         }
-        return Result(targets: targets, visited: visited, duration: Date().timeIntervalSince(start), menuOpen: menuOpen)
+        return Result(targets: targets, visited: visited, duration: Date().timeIntervalSince(start), menuOpen: menuOpen,
+                      weakRemoved: weakRemoved, removed: removedTargets)
     }
 
     /// A group and the button inside it often share a frame. Keep the deepest one.

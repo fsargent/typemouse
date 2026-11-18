@@ -24,6 +24,24 @@ public enum Hints {
         return Array(hints[offset..<(offset + count)])
     }
 
+    /// Vimium's spreading: inside each group of labels with the same length, order them so that
+    /// neighbors start with different characters ("ff", "jf", "df" instead of "ff", "fj", "fd").
+    /// After the first key press, the remaining labels are then spread out, not clustered.
+    /// Shorter labels stay first, so the targets that come first still get the shortest labels.
+    public static func spread(_ labels: [String], alphabet: [Character]) -> [String] {
+        let rank = Dictionary(unique(alphabet).enumerated().map { ($1, $0) }, uniquingKeysWith: { a, _ in a })
+        func key(_ s: String) -> [Int] { s.reversed().map { rank[$0] ?? Int.max } }
+        var out: [String] = []
+        var i = 0
+        while i < labels.count {
+            var j = i
+            while j < labels.count && labels[j].count == labels[i].count { j += 1 }
+            out += labels[i..<j].sorted { key($0).lexicographicallyPrecedes(key($1)) }
+            i = j
+        }
+        return out
+    }
+
     static func unique(_ chars: [Character]) -> [Character] {
         var seen = Set<Character>()
         return chars.filter { seen.insert($0).inserted }

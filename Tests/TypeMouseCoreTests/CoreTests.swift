@@ -373,3 +373,46 @@ final class LabelPriorityTests: XCTestCase {
     }
 }
 
+final class SpreadAndWeakTests: XCTestCase {
+    let home = Array("fjdkslagh")
+
+    func testSpreadKeepsTheSetAndLengthOrder() {
+        let labels = Hints.generate(count: 40, alphabet: home)
+        let spread = Hints.spread(labels, alphabet: home)
+        XCTAssertEqual(Set(spread), Set(labels))
+        XCTAssertEqual(spread.map(\.count), labels.map(\.count))
+    }
+
+    func testSpreadVariesTheFirstCharacter() {
+        let labels = Hints.generate(count: 81, alphabet: home) // all two-letter
+        let spread = Hints.spread(labels, alphabet: home)
+        XCTAssertEqual(Array(spread.prefix(3)), ["ff", "jf", "df"])
+        XCTAssertEqual(Set(spread.prefix(9).map(\.first!)).count, 9)
+    }
+
+    func testIconInsideAButtonIsDropped() {
+        let items = [LabelPriority.Candidate(frame: CGRect(x: 0, y: 0, width: 100, height: 30), role: "AXButton"),
+                     LabelPriority.Candidate(frame: CGRect(x: 5, y: 5, width: 16, height: 16), role: "AXImage")]
+        XCTAssertEqual(LabelPriority.removeWeakDuplicates(items), [0])
+    }
+
+    func testCardAroundItsLinkIsDropped() {
+        let items = [LabelPriority.Candidate(frame: CGRect(x: 0, y: 0, width: 300, height: 60), role: "AXGroup"),
+                     LabelPriority.Candidate(frame: CGRect(x: 10, y: 10, width: 260, height: 40), role: "AXLink")]
+        XCTAssertEqual(LabelPriority.removeWeakDuplicates(items), [1])
+    }
+
+    func testLargeAreaWithASmallButtonStays() {
+        // A big clickable row with a small button in a corner: both stay.
+        let items = [LabelPriority.Candidate(frame: CGRect(x: 0, y: 0, width: 600, height: 80), role: "AXGroup"),
+                     LabelPriority.Candidate(frame: CGRect(x: 560, y: 20, width: 30, height: 30), role: "AXButton")]
+        XCTAssertEqual(LabelPriority.removeWeakDuplicates(items), [0, 1])
+    }
+
+    func testStrongTargetsAreNeverDropped() {
+        let items = [LabelPriority.Candidate(frame: CGRect(x: 0, y: 0, width: 100, height: 30), role: "AXButton"),
+                     LabelPriority.Candidate(frame: CGRect(x: 5, y: 5, width: 20, height: 20), role: "AXLink")]
+        XCTAssertEqual(LabelPriority.removeWeakDuplicates(items), [0, 1])
+    }
+}
+

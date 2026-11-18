@@ -42,7 +42,9 @@ Search has no hotkey by default. Press `/` or `Tab` in click mode to search, or 
 
 Labels go by element type. Buttons get the shortest labels, then text fields, then links, then other elements.
 A browser's own tabs, toolbar, and bookmarks come after the page, and the menu bar comes last.
-Within each type, labels follow reading order. Turn this off with `"prioritizeLabels": false` or in Settings.
+Within each type, labels follow reading order.
+Labels of the same length are spread out, so neighbors start with different keys (as in Vimium).
+An icon inside a button, or a card around its link, gets no label of its own (as in Vimium C). Turn this off with `"prioritizeLabels": false` or in Settings.
 
 Shift combines with the other modifiers. For example, `⇧⌘` + label opens a link in a new tab and stays in click mode for the next link.
 

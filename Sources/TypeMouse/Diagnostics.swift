@@ -35,11 +35,16 @@ enum Diagnostics {
         // A second scan shows the warm time (Chromium and Electron build their tree on the first request).
         let warm = ElementProvider().collect(app: app, config: config)
         ElementProvider.resolveText(&result.targets)
-        let labels = Hints.generate(count: result.targets.count, alphabet: config.hintAlphabet)
+        let labels = Hints.spread(Hints.generate(count: result.targets.count, alphabet: config.hintAlphabet), alphabet: config.hintAlphabet)
         for (t, l) in zip(result.targets, labels) {
             let f = t.frame
             print(String(format: "%-4@ %-16@ %5.0f,%-5.0f %4.0fx%-4.0f %@ %@", l, t.role, f.minX, f.minY, f.width, f.height,
                          t.inWebArea ? "web" : "   ", String(t.text.prefix(60)) as NSString))
+        }
+        print("weak duplicates removed: \(result.weakRemoved)")
+        for t in result.removed {
+            let f = t.frame
+            print(String(format: "  - %-14@ %5.0f,%-5.0f %4.0fx%-4.0f %@", t.role, f.minX, f.minY, f.width, f.height, String(t.text.prefix(50)) as NSString))
         }
         print(String(format: "\n%@: %d targets, %d elements visited. first scan %.0f ms, second scan %.0f ms (%d targets)%@",
                      app.localizedName ?? "?", result.targets.count, result.visited, result.duration * 1000,

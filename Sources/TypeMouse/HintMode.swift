@@ -43,8 +43,8 @@ final class HintMode {
         textResolved = false
 
         let result = ElementProvider().collect(app: app, config: config)
-        Log.info(String(format: "scan %@: %d targets, %d visited, %.0f ms%@", app.localizedName ?? "?",
-                        result.targets.count, result.visited, result.duration * 1000, result.menuOpen ? " (menu)" : ""))
+        Log.info(String(format: "scan %@: %d targets (%d weak duplicates removed), %d visited, %.0f ms%@", app.localizedName ?? "?",
+                        result.targets.count, result.weakRemoved, result.visited, result.duration * 1000, result.menuOpen ? " (menu)" : ""))
         targets = result.targets
         guard !targets.isEmpty else {
             overlay.render([], banner: "No clickable elements in \(app.localizedName ?? "this app")")
@@ -53,7 +53,7 @@ final class HintMode {
             }
             return
         }
-        labels = Hints.generate(count: targets.count, alphabet: config.hintAlphabet)
+        labels = Hints.spread(Hints.generate(count: targets.count, alphabet: config.hintAlphabet), alphabet: config.hintAlphabet)
         overlay.fontSize = CGFloat(config.labelFontSize)
         if search { enterSearch() } else { phase = .labels; render() }
     }
