@@ -38,6 +38,10 @@ Search has no hotkey by default. Press `/` or `Tab` in click mode to search, or 
 | `Backspace` | Delete the last typed key |
 | `Esc` or the hotkey again | Exit |
 
+Labels go by element type. Buttons get the shortest labels, then text fields, then links, then other elements.
+A browser's own tabs, toolbar, and bookmarks come after the page, and the menu bar comes last.
+Within each type, labels follow reading order. Turn this off with `"prioritizeLabels": false` or in Settings.
+
 Shift combines with the other modifiers. For example, `⇧⌘` + label opens a link in a new tab and stays in click mode for the next link.
 
 If a menu is open, click mode labels only the menu items.
@@ -110,6 +114,7 @@ TypeMouse writes the defaults on first launch. Every key is optional.
   "restoreMousePosition": true,
   "clickAfterPicker": true,
   "chainDelayMs": 500,
+  "prioritizeLabels": true,
   "labelFontSize": 12,
   "enhancedUserInterfaceApps": ["com.google.Chrome", "com.brave.Browser", "…"]
 }

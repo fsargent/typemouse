@@ -335,3 +335,41 @@ final class PickerLabelsTests: XCTestCase {
     }
 }
 
+final class LabelPriorityTests: XCTestCase {
+    func tier(_ role: String, web: Bool = true, appWeb: Bool = true, menu: Bool = false) -> LabelPriority.Tier {
+        LabelPriority.tier(role: role, inWebArea: web, appHasWebContent: appWeb, inMenuBar: menu)
+    }
+
+    func testPageElementsByType() {
+        XCTAssertEqual(tier("AXButton"), .button)
+        XCTAssertEqual(tier("AXCheckBox"), .button)
+        XCTAssertEqual(tier("AXTextField"), .field)
+        XCTAssertEqual(tier("AXLink"), .link)
+        XCTAssertEqual(tier("AXGroup"), .other)
+        XCTAssertLessThan(tier("AXButton"), tier("AXTextField"))
+        XCTAssertLessThan(tier("AXTextField"), tier("AXLink"))
+        XCTAssertLessThan(tier("AXLink"), tier("AXGroup"))
+    }
+
+    func testBrowserUIComesAfterThePage() {
+        // A Chrome toolbar button is outside the web area while the page has content.
+        XCTAssertEqual(tier("AXButton", web: false, appWeb: true), .appUI)
+        XCTAssertLessThan(tier("AXGroup"), tier("AXButton", web: false, appWeb: true))
+    }
+
+    func testNativeAppsUseRoleTiers() {
+        XCTAssertEqual(tier("AXButton", web: false, appWeb: false), .button)
+        XCTAssertEqual(tier("AXTextField", web: false, appWeb: false), .field)
+    }
+
+    func testMenuBarIsLast() {
+        XCTAssertEqual(tier("AXMenuBarItem", web: false, menu: true), .menuBar)
+        XCTAssertLessThan(tier("AXButton", web: false, appWeb: true), .menuBar)
+    }
+
+    func testDefaultOn() throws {
+        XCTAssertTrue(Config().prioritizeLabels)
+        XCTAssertFalse(try Config.decode(Data(#"{"prioritizeLabels": false}"#.utf8)).prioritizeLabels)
+    }
+}
+

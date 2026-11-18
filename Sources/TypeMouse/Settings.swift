@@ -194,6 +194,11 @@ struct SettingsView: View {
                 }
                 Text("Most preferred first. Short labels use the first characters.")
                     .font(.caption).foregroundStyle(.secondary)
+                Toggle("Shortest labels for buttons, then fields, then links", isOn: Binding(
+                    get: { model.config.prioritizeLabels },
+                    set: { model.config.prioritizeLabels = $0; model.commit() }))
+                Text("A browser's own tabs and toolbar get the longest labels. Off: labels follow reading order.")
+                    .font(.caption).foregroundStyle(.secondary)
                 Stepper(value: Binding(get: { model.config.labelFontSize },
                                        set: { model.config.labelFontSize = $0; model.commit() }),
                         in: 9...24, step: 1) {
