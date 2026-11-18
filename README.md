@@ -167,6 +167,15 @@ TypeMouse writes the defaults on first launch. Every key is optional.
 - `enhancedUserInterfaceApps`: apps that get the `AXEnhancedUserInterface` flag. Chromium browsers need it to show web page labels. The default lists Chrome, Brave, Edge, Arc, Vivaldi, and Opera. The flag can slow window moves by tools such as Rectangle or Raycast.
 - To find a bundle identifier, run `osascript -e 'id of app "Slack"'`.
 
+## Install with Homebrew
+
+```sh
+brew install --cask fsargent/tap/typemouse
+```
+
+The cask removes the download quarantine. After you install it, grant Accessibility permission when macOS asks.
+`brew upgrade` installs new releases. After each upgrade, grant Accessibility permission again (see the note under Download).
+
 ## Download
 
 Each release on the [Releases page](https://github.com/fsargent/typemouse/releases) has a universal `TypeMouse-<version>.zip`.
