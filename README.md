@@ -170,8 +170,12 @@ TypeMouse writes the defaults on first launch. Every key is optional.
 ## Install with Homebrew
 
 ```sh
-brew install --cask fsargent/tap/typemouse
+brew tap fsargent/tap
+brew trust --tap fsargent/tap
+brew install --cask typemouse
 ```
+
+Homebrew loads casks from other taps only after you trust the tap. `brew trust` records that choice.
 
 The cask removes the download quarantine. After you install it, grant Accessibility permission when macOS asks.
 `brew upgrade` installs new releases. After each upgrade, grant Accessibility permission again (see the note under Download).
