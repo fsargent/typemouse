@@ -34,6 +34,7 @@ Search has no hotkey by default. Press `/` or `Tab` in click mode to search, or 
 | `⌘` + last label key | ⌘-click (for example, open a link in a new tab) |
 | `⌥` + last label key | Double-click |
 | `⌃⌥` + last label key | Move the mouse only (hover) |
+| `Space` | Turn chain mode on or off. In chain mode, every click is a chain click. |
 | `/` or `Tab` | Switch to search |
 | `Backspace` | Delete the last typed key |
 | `Esc` or the hotkey again | Exit |
@@ -96,7 +97,7 @@ Open **Settings…** from the menu-bar icon, or open TypeMouse again while it ru
 
 - **Hotkeys**: click a hotkey, then press the new key combination. Press `Esc` to cancel. Click **+ Add** to give a mode a second hotkey. Click **×** to clear a hotkey and turn that mode off.
 - **Labels**: hint characters and label size.
-- **Behavior**: chain click delay, click mode after the window picker, mouse position after a click, and launch at login.
+- **Behavior**: chain click delay (milliseconds), click mode after the window picker, mouse position after a click, and launch at login.
 
 The settings window writes the same config file described below.
 

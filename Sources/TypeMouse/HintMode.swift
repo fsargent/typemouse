@@ -15,6 +15,8 @@ final class HintMode {
     private var matches: [Int] = []
     private var highlight = 0
     private var textResolved = false
+    /// Space turns this on: every click chains until Space again or the mode closes.
+    private var chainMode = false
 
     private let overlay = Overlay()
     private let capture: KeyCapture
@@ -27,7 +29,9 @@ final class HintMode {
 
     func update(config: Config) { self.config = config }
 
-    func start(search: Bool) {
+    /// - Parameter keepChain: true for the rescan after a chain click, so chain mode stays on.
+    func start(search: Bool, keepChain: Bool = false) {
+        if !keepChain { chainMode = false }
         guard let app = NSWorkspace.shared.frontmostApplication else { return }
         // Swallow keys from now on. Keys typed during the scan queue up and apply after it.
         capture.setActive(true)
@@ -88,10 +92,14 @@ final class HintMode {
             return
         case .enter:
             let hits = labels.indices.filter { labels[$0].hasPrefix(typed) }
-            if hits.count == 1 { fire(hits[0], ClickKind(key), chain: ClickKind.isChain(key)) }
+            if hits.count == 1 { fire(hits[0], ClickKind(key), chain: ClickKind.isChain(key) || chainMode) }
             return
         case .tab:
             enterSearch()
+            return
+        case .space:
+            chainMode.toggle()
+            render()
             return
         default: break
         }
@@ -102,7 +110,7 @@ final class HintMode {
         let hits = labels.indices.filter { labels[$0].hasPrefix(next) }
         guard !hits.isEmpty else { NSSound.beep(); return }
         if hits.count == 1, labels[hits[0]] == next {
-            fire(hits[0], ClickKind(key), chain: ClickKind.isChain(key))
+            fire(hits[0], ClickKind(key), chain: ClickKind.isChain(key) || chainMode)
             return
         }
         typed = next
@@ -114,7 +122,7 @@ final class HintMode {
             guard labels[i].hasPrefix(typed) else { return nil }
             return LabelSpec(text: labels[i], typedCount: typed.count, rect: targets[i].frame, style: .normal)
         }
-        overlay.render(specs)
+        overlay.render(specs, banner: chainMode ? "Chain mode · Space to stop" : nil)
     }
 
     // MARK: - Search
@@ -132,7 +140,7 @@ final class HintMode {
     private func handleSearch(_ key: KeyEvent) {
         switch key.special {
         case .enter:
-            if matches.indices.contains(highlight) { fire(matches[highlight], ClickKind(key), chain: ClickKind.isChain(key)) }
+            if matches.indices.contains(highlight) { fire(matches[highlight], ClickKind(key), chain: ClickKind.isChain(key) || chainMode) }
             return
         case .backspace:
             if query.isEmpty { phase = .labels; typed = ""; render(); return }
@@ -200,12 +208,12 @@ final class HintMode {
             overlay.hide()
             targets = []
             labels = []
-            DispatchQueue.main.async {
+            DispatchQueue.main.async { [weak self] in
                 Actuator.perform(kind, on: target, strategy: strategy, restoreMouse: restore)
                 // Give the app a moment to react to the click, then label what is on screen now.
                 DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
                     guard let self, self.isActive else { return }
-                    self.start(search: false)
+                    self.start(search: false, keepChain: true)
                 }
             }
             return

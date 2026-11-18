@@ -199,20 +199,16 @@ struct SettingsView: View {
                     set: { model.config.prioritizeLabels = $0; model.commit() }))
                 Text("A browser's own tabs and toolbar get the longest labels. Off: labels follow reading order.")
                     .font(.caption).foregroundStyle(.secondary)
-                Stepper(value: Binding(get: { model.config.labelFontSize },
-                                       set: { model.config.labelFontSize = $0; model.commit() }),
-                        in: 9...24, step: 1) {
-                    Text("Label size: \(Int(model.config.labelFontSize)) pt")
-                }
+                numberRow("Label size", unit: "pt", range: 8...48, step: 1, value: Binding(
+                    get: { Int(model.config.labelFontSize) },
+                    set: { model.config.labelFontSize = Double($0); model.commit() }))
             }
 
             Section("Behavior") {
-                Stepper(value: Binding(get: { model.config.chainDelayMs },
-                                       set: { model.config.chainDelayMs = $0; model.commit() }),
-                        in: 0...3000, step: 100) {
-                    Text("Chain click delay: \(model.config.chainDelayMs) ms")
-                }
-                Text("Shift + label clicks, waits this long, then shows new labels.")
+                numberRow("Chain click delay", unit: "ms", range: 0...5000, step: 100, value: Binding(
+                    get: { model.config.chainDelayMs },
+                    set: { model.config.chainDelayMs = $0; model.commit() }))
+                Text("Shift + label, or Space in click mode, chains clicks: click, wait this long, then show new labels.")
                     .font(.caption).foregroundStyle(.secondary)
                 Toggle("Start click mode after the window picker", isOn: Binding(
                     get: { model.config.clickAfterPicker },
@@ -239,6 +235,23 @@ struct SettingsView: View {
         .fixedSize(horizontal: false, vertical: true)
         .onAppear { hintCharacters = model.config.hintCharacters }
         .onChange(of: model.config.hintCharacters) { _, new in hintCharacters = new }
+    }
+
+    /// A number setting: the title on the left, the field (with its unit and a stepper) on the right.
+    private func numberRow(_ title: String, unit: String, range: ClosedRange<Int>, step: Int, value: Binding<Int>) -> some View {
+        let clamped = Binding(get: { value.wrappedValue },
+                              set: { value.wrappedValue = min(max($0, range.lowerBound), range.upperBound) })
+        return LabeledContent(title) {
+            HStack(spacing: 4) {
+                TextField(title, value: clamped, format: .number)
+                    .labelsHidden()
+                    .textFieldStyle(.roundedBorder)
+                    .multilineTextAlignment(.trailing)
+                    .frame(width: 64)
+                Text(unit).foregroundStyle(.secondary)
+                Stepper(title, value: clamped, in: range, step: step).labelsHidden()
+            }
+        }
     }
 
     @ViewBuilder
