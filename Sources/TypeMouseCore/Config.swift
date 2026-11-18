@@ -78,7 +78,7 @@ public struct Config: Codable, Equatable {
     public var chainModeByDefault = false
     /// Chain click: milliseconds to wait after a click before the new labels appear,
     /// so the app can react (open a menu, load a page).
-    public var chainDelayMs = 500
+    public var chainDelayMs = 250
     public var labelFontSize: Double = 12
 
     /// Chromium browsers build the web page tree only when AXEnhancedUserInterface is on.
