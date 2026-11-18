@@ -202,6 +202,13 @@ struct SettingsView: View {
             }
 
             Section("Behavior") {
+                Stepper(value: Binding(get: { model.config.chainDelayMs },
+                                       set: { model.config.chainDelayMs = $0; model.commit() }),
+                        in: 0...3000, step: 100) {
+                    Text("Chain click delay: \(model.config.chainDelayMs) ms")
+                }
+                Text("Shift + label clicks, waits this long, then shows new labels.")
+                    .font(.caption).foregroundStyle(.secondary)
                 Toggle("Start click mode after the window picker", isOn: Binding(
                     get: { model.config.clickAfterPicker },
                     set: { model.config.clickAfterPicker = $0; model.commit() }))

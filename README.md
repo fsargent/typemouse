@@ -29,7 +29,7 @@ Search has no hotkey by default. Press `/` or `Tab` in click mode to search, or 
 | Key | Action |
 |---|---|
 | label | Click |
-| `⇧` + last label key | Chain click: click, then show new labels and stay in click mode |
+| `⇧` + last label key | Chain click: click, wait 500 ms (`chainDelayMs`), then show new labels and stay in click mode |
 | `⌃` + last label key | Right-click |
 | `⌘` + last label key | ⌘-click (for example, open a link in a new tab) |
 | `⌥` + last label key | Double-click |
@@ -92,7 +92,7 @@ Open **Settings…** from the menu-bar icon, or open TypeMouse again while it ru
 
 - **Hotkeys**: click a hotkey, then press the new key combination. Press `Esc` to cancel. Click **+ Add** to give a mode a second hotkey. Click **×** to clear a hotkey and turn that mode off.
 - **Labels**: hint characters and label size.
-- **Behavior**: mouse position after a click, and launch at login.
+- **Behavior**: chain click delay, click mode after the window picker, mouse position after a click, and launch at login.
 
 The settings window writes the same config file described below.
 
@@ -109,6 +109,7 @@ TypeMouse writes the defaults on first launch. Every key is optional.
   "clickStrategy": { "com.example.app": "mouse" },
   "restoreMousePosition": true,
   "clickAfterPicker": true,
+  "chainDelayMs": 500,
   "labelFontSize": 12,
   "enhancedUserInterfaceApps": ["com.google.Chrome", "com.brave.Browser", "…"]
 }

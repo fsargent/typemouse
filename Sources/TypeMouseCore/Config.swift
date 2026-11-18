@@ -71,6 +71,9 @@ public struct Config: Codable, Equatable {
     public var restoreMousePosition = true
     /// After the window picker focuses a window, start click mode in it.
     public var clickAfterPicker = true
+    /// Chain click: milliseconds to wait after a click before the new labels appear,
+    /// so the app can react (open a menu, load a page).
+    public var chainDelayMs = 500
     public var labelFontSize: Double = 12
 
     /// Chromium browsers build the web page tree only when AXEnhancedUserInterface is on.
@@ -96,6 +99,7 @@ public struct Config: Codable, Equatable {
         clickStrategy = try c.decodeIfPresent([String: ClickStrategy].self, forKey: .clickStrategy) ?? d.clickStrategy
         restoreMousePosition = try c.decodeIfPresent(Bool.self, forKey: .restoreMousePosition) ?? d.restoreMousePosition
         clickAfterPicker = try c.decodeIfPresent(Bool.self, forKey: .clickAfterPicker) ?? d.clickAfterPicker
+        chainDelayMs = max(0, try c.decodeIfPresent(Int.self, forKey: .chainDelayMs) ?? d.chainDelayMs)
         labelFontSize = try c.decodeIfPresent(Double.self, forKey: .labelFontSize) ?? d.labelFontSize
         enhancedUserInterfaceApps = try c.decodeIfPresent([String].self, forKey: .enhancedUserInterfaceApps) ?? d.enhancedUserInterfaceApps
     }

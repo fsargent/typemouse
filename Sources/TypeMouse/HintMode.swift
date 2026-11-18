@@ -194,6 +194,7 @@ final class HintMode {
         let target = targets[index]
         let strategy = config.clickStrategy[app?.bundleIdentifier ?? ""] ?? .auto
         let restore = config.restoreMousePosition
+        let delay = Double(config.chainDelayMs) / 1000
         if chain {
             // Stay in click mode. Empty targets make key presses wait (Esc still exits) until the new scan.
             overlay.hide()
@@ -202,7 +203,7 @@ final class HintMode {
             DispatchQueue.main.async {
                 Actuator.perform(kind, on: target, strategy: strategy, restoreMouse: restore)
                 // Give the app a moment to react to the click, then label what is on screen now.
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+                DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
                     guard let self, self.isActive else { return }
                     self.start(search: false)
                 }

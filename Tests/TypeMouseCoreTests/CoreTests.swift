@@ -148,6 +148,12 @@ final class HotkeyAndConfigTests: XCTestCase {
         XCTAssertEqual(try Config.decode(c.encoded()).hotkeys, c.hotkeys)
     }
 
+    func testChainDelay() throws {
+        XCTAssertEqual(Config().chainDelayMs, 500)
+        XCTAssertEqual(try Config.decode(Data(#"{"chainDelayMs": 1200}"#.utf8)).chainDelayMs, 1200)
+        XCTAssertEqual(try Config.decode(Data(#"{"chainDelayMs": -5}"#.utf8)).chainDelayMs, 0)
+    }
+
     func testClickAfterPickerDefaultsOn() throws {
         XCTAssertTrue(Config().clickAfterPicker)
         XCTAssertFalse(try Config.decode(Data(#"{"clickAfterPicker": false}"#.utf8)).clickAfterPicker)
