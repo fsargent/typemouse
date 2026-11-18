@@ -126,6 +126,13 @@ Then hold Caps Lock and press a key to send Hyper + that key, for example Caps L
 - TypeMouse removes the remap when you turn the setting off or quit the app.
 - Leave this off if Karabiner, kanata, or a custom keyboard already gives you a Hyper key.
 
+### Recommended: kanata and Kanata Bar
+
+To customize your keyboard further, use [kanata](https://github.com/jtroo/kanata).
+It remaps keys and adds layers, home-row modifiers, and tap-hold keys, such as Caps Lock as Escape when tapped and Hyper when held.
+[Kanata Bar](https://github.com/not-in-stock/kanata-bar) is a menu-bar app that starts kanata and keeps it running on macOS.
+If you use kanata, leave **Use Caps Lock as Hyper** off and make the Hyper key in kanata.
+
 If TypeMouse stops without removing the remap, start TypeMouse again or restart the Mac.
 To remove all remaps by hand, run `hidutil property --set '{"UserKeyMapping":[]}'`.
 
