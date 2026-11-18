@@ -74,6 +74,9 @@ public struct Config: Codable, Equatable {
     /// Click mode gives the shortest labels to buttons, then text fields, then links, then other
     /// elements, then the app's own UI (a browser's tabs and toolbar). Off: reading order.
     public var prioritizeLabels = true
+    /// Caps Lock acts as Hyper (Command + Control + Option + Shift) while TypeMouse runs.
+    /// Off by default because it changes a key everywhere. Not needed with Karabiner or kanata.
+    public var capsLockToHyper = false
     /// Click mode starts with chain mode on. Space still turns it off for that session.
     public var chainModeByDefault = false
     /// Chain click: milliseconds to wait after a click before the new labels appear,
@@ -105,6 +108,7 @@ public struct Config: Codable, Equatable {
         restoreMousePosition = try c.decodeIfPresent(Bool.self, forKey: .restoreMousePosition) ?? d.restoreMousePosition
         clickAfterPicker = try c.decodeIfPresent(Bool.self, forKey: .clickAfterPicker) ?? d.clickAfterPicker
         prioritizeLabels = try c.decodeIfPresent(Bool.self, forKey: .prioritizeLabels) ?? d.prioritizeLabels
+        capsLockToHyper = try c.decodeIfPresent(Bool.self, forKey: .capsLockToHyper) ?? d.capsLockToHyper
         chainModeByDefault = try c.decodeIfPresent(Bool.self, forKey: .chainModeByDefault) ?? d.chainModeByDefault
         chainDelayMs = max(0, try c.decodeIfPresent(Int.self, forKey: .chainDelayMs) ?? d.chainDelayMs)
         labelFontSize = try c.decodeIfPresent(Double.self, forKey: .labelFontSize) ?? d.labelFontSize

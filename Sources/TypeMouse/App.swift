@@ -5,6 +5,7 @@ import ServiceManagement
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let capture = KeyCapture()
     private let hotkeys = HotkeyManager()
+    private let hyperKey = HyperKey()
     private var config = ConfigStore.load()
     private lazy var hints = HintMode(capture: capture, config: config)
     private lazy var windows = WindowMode(capture: capture, config: config)
@@ -22,6 +23,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // While a field records, release our hotkeys so the keys reach the settings window.
             if on { self?.hotkeys.unregisterAll() } else { self?.registerHotkeys() }
         })
+
+    /// Puts Caps Lock back.
+    func applicationWillTerminate(_ note: Notification) {
+        hyperKey.setEnabled(false)
+    }
 
     func applicationDidFinishLaunching(_ note: Notification) {
         Log.info("TypeMouse starting, pid \(ProcessInfo.processInfo.processIdentifier)")
@@ -73,6 +79,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let ok = capture.start()
         Log.info("key capture \(ok ? "ready" : "failed")")
         updateStatusTitle(ok)
+        // After key capture: the newest tap sees keys first, so click mode also sees Hyper.
+        if ok { hyperKey.setEnabled(config.capsLockToHyper) }
         return ok
     }
 
@@ -235,6 +243,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self.hints.update(config: next)
             self.windows.update(config: next)
             self.picker.update(config: next)
+            if self.capture.isStarted { self.hyperKey.setEnabled(next.capsLockToHyper) }
             self.settings.update(config: next)
             self.registerHotkeys()
             AccessibilityActivator.activateAll(enhancedApps: next.enhancedUserInterfaceApps)

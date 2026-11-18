@@ -22,6 +22,9 @@ It is a personal replacement for [Homerow](https://www.homerow.app), with a sepa
 | `hyper+l` | Window | Shows a list of windows with stable labels. Type a label to focus the window. |
 | none | Search | Type part of an element's text. Press `Enter` to click the highlighted match. |
 
+All default hotkeys use Hyper: Command (⌘) + Control (⌃) + Option (⌥) + Shift (⇧) together.
+If your keyboard has no Hyper key, turn on **Use Caps Lock as Hyper** in Settings. See [Caps Lock as Hyper](#caps-lock-as-hyper).
+
 Search has no hotkey by default. Press `/` or `Tab` in click mode to search, or add a hotkey in Settings.
 
 ### Click mode keys
@@ -112,6 +115,20 @@ Open **Settings…** from the menu-bar icon, or open TypeMouse again while it ru
 
 The settings window writes the same config file described below.
 
+## Caps Lock as Hyper
+
+Turn on **Use Caps Lock as Hyper** in Settings, or set `"capsLockToHyper": true`.
+Then hold Caps Lock and press a key to send Hyper + that key, for example Caps Lock + J for click mode.
+
+- TypeMouse remaps Caps Lock to F18 with the macOS key remap service (the one `hidutil` uses). Other remaps stay.
+- While you hold Caps Lock, TypeMouse adds the four Hyper modifiers to each key you press.
+- Caps Lock no longer turns on capital letters, and its light stays off.
+- TypeMouse removes the remap when you turn the setting off or quit the app.
+- Leave this off if Karabiner, kanata, or a custom keyboard already gives you a Hyper key.
+
+If TypeMouse stops without removing the remap, start TypeMouse again or restart the Mac.
+To remove all remaps by hand, run `hidutil property --set '{"UserKeyMapping":[]}'`.
+
 ## Configuration
 
 TypeMouse reads `~/.config/typemouse/config.json` and reloads it when the file changes.
@@ -127,6 +144,7 @@ TypeMouse writes the defaults on first launch. Every key is optional.
   "clickAfterPicker": true,
   "chainDelayMs": 250,
   "chainModeByDefault": false,
+  "capsLockToHyper": false,
   "prioritizeLabels": true,
   "labelFontSize": 12,
   "enhancedUserInterfaceApps": ["com.google.Chrome", "com.brave.Browser", "…"]

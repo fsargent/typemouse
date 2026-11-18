@@ -421,3 +421,35 @@ final class SpreadAndWeakTests: XCTestCase {
     }
 }
 
+final class CapsLockMappingTests: XCTestCase {
+    let other: [String: UInt64] = [CapsLockMapping.sourceKey: 0x7_0000_0064, CapsLockMapping.destinationKey: 0x7_0000_0035]
+
+    func testAddKeepsOtherRemaps() {
+        let r = CapsLockMapping.adding(to: [other])
+        XCTAssertEqual(r.count, 2)
+        XCTAssertEqual(r[0], other)
+        XCTAssertEqual(r[1][CapsLockMapping.destinationKey], CapsLockMapping.f18)
+    }
+
+    func testAddTwiceAddsOnce() {
+        let r = CapsLockMapping.adding(to: CapsLockMapping.adding(to: []))
+        XCTAssertEqual(r.count, 1)
+    }
+
+    func testAddReplacesAnOlderCapsLockRemap() {
+        let capsToControl: [String: UInt64] = [CapsLockMapping.sourceKey: CapsLockMapping.capsLock,
+                                               CapsLockMapping.destinationKey: 0x7_0000_00E0]
+        XCTAssertEqual(CapsLockMapping.adding(to: [capsToControl]).count, 1)
+    }
+
+    func testRemoveTakesOnlyOurs() {
+        let r = CapsLockMapping.removing(from: CapsLockMapping.adding(to: [other]))
+        XCTAssertEqual(r, [other])
+    }
+
+    func testOffByDefault() throws {
+        XCTAssertFalse(Config().capsLockToHyper)
+        XCTAssertTrue(try Config.decode(Data(#"{"capsLockToHyper": true}"#.utf8)).capsLockToHyper)
+    }
+}
+

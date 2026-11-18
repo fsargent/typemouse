@@ -204,6 +204,14 @@ struct SettingsView: View {
                     set: { model.config.labelFontSize = Double($0); model.commit() }))
             }
 
+            Section("Keyboard") {
+                Toggle("Use Caps Lock as Hyper", isOn: Binding(
+                    get: { model.config.capsLockToHyper },
+                    set: { model.config.capsLockToHyper = $0; model.commit() }))
+                Text("Hold Caps Lock for Command + Control + Option + Shift, the default TypeMouse hotkeys. Leave this off if Karabiner, kanata, or your keyboard already makes a Hyper key.")
+                    .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
+
             Section("Behavior") {
                 Toggle("Start click mode in chain mode", isOn: Binding(
                     get: { model.config.chainModeByDefault },
