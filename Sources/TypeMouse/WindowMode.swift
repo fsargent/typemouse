@@ -25,7 +25,8 @@ final class WindowMode {
     private var filter: String?
     private var highlight = 0
 
-    private let panel = WindowPanel()
+    /// One panel per screen, so the list shows on every monitor.
+    private var panels: [WindowPanel] = []
     private let capture: KeyCapture
     private var config: Config
 
@@ -61,7 +62,7 @@ final class WindowMode {
         guard isActive else { return }
         isActive = false
         capture.setActive(false)
-        panel.hide()
+        panels.forEach { $0.hide() }
     }
 
     func handle(_ key: KeyEvent) {
@@ -155,7 +156,13 @@ final class WindowMode {
     }
 
     private func render() {
-        panel.show(rows: visible.map { rows[$0] }, typed: typed, filter: filter, highlight: highlight)
+        let screens = NSScreen.screens
+        if panels.count != screens.count || zip(panels, screens).contains(where: { $0.screen.frame != $1.frame }) {
+            panels.forEach { $0.hide() }
+            panels = screens.map { WindowPanel(screen: $0) }
+        }
+        let shown = visible.map { rows[$0] }
+        for p in panels { p.show(rows: shown, typed: typed, filter: filter, highlight: highlight) }
     }
 
     private func highlightedRow() -> Int? {
@@ -221,13 +228,14 @@ final class WindowPanel {
     private let stack = NSStackView()
     private let header = NSTextField(labelWithString: "")
 
-    /// The screen the panel opened on. It stays there while the panel is open.
-    private var screen: NSScreen?
+    /// The screen this panel shows on.
+    let screen: NSScreen
 
     static let width: CGFloat = 720
     static let rowHeight: CGFloat = 30
 
-    init() {
+    init(screen: NSScreen) {
+        self.screen = screen
         window = NSPanel(contentRect: CGRect(x: 0, y: 0, width: Self.width, height: 100),
                          styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: true)
         window.isOpaque = false
@@ -282,8 +290,7 @@ final class WindowPanel {
         let height = 20 + 22 + max(1, shown) * (Self.rowHeight + 2)
         // Pin the top edge, so rows stay in place when the list grows or shrinks.
         let wasVisible = window.isVisible
-        if !wasVisible { screen = NSScreen.main ?? NSScreen.screens[0] }
-        let f = (screen ?? NSScreen.screens[0]).visibleFrame
+        let f = screen.visibleFrame
         let top = f.maxY - f.height * 0.18
         window.setFrame(CGRect(x: f.midX - Self.width / 2, y: top - height, width: Self.width, height: height),
                         display: true, animate: false)

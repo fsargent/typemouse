@@ -80,7 +80,7 @@ Labels come from app names, so they stay the same when windows move:
 
 ### Window mode keys
 
-Window mode uses the same labels as the window picker.
+Window mode uses the same labels as the window picker. The list shows on every monitor.
 
 | Key | Action |
 |---|---|
