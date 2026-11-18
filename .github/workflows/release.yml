@@ -1,4 +1,5 @@
-# Builds TypeMouse.app and publishes a GitHub release when a version tag is pushed.
+# Builds TypeMouse.app, publishes a GitHub release, and updates the Homebrew tap
+# when a version tag is pushed.
 #   git tag v0.2.0 && git push origin v0.2.0
 name: Release
 
@@ -41,3 +42,31 @@ jobs:
             "$RUNNER_TEMP/dist/TypeMouse-$VERSION.zip" \
             "$RUNNER_TEMP/dist/TypeMouse-$VERSION.zip.sha256" \
             --title "TypeMouse $VERSION" --generate-notes
+
+      - name: Update the Homebrew tap
+        env:
+          TAP_DEPLOY_KEY: ${{ secrets.HOMEBREW_TAP_DEPLOY_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "$TAP_DEPLOY_KEY" ]; then
+            echo "::warning::HOMEBREW_TAP_DEPLOY_KEY is not set. The Homebrew tap was not updated."
+            exit 0
+          fi
+          VERSION="${GITHUB_REF_NAME#v}"
+          SHA=$(awk '{print $1}' "$RUNNER_TEMP/dist/TypeMouse-$VERSION.zip.sha256")
+          KEY="$RUNNER_TEMP/tap_key"
+          (umask 077 && printf '%s\n' "$TAP_DEPLOY_KEY" > "$KEY")
+          export GIT_SSH_COMMAND="ssh -i $KEY -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
+          git clone --depth 1 git@github.com:fsargent/homebrew-tap.git "$RUNNER_TEMP/tap"
+          cd "$RUNNER_TEMP/tap"
+          sed -i '' "s/^  version \".*\"$/  version \"$VERSION\"/; s/^  sha256 \".*\"$/  sha256 \"$SHA\"/" Casks/typemouse.rb
+          if git diff --quiet; then
+            echo "The cask is already on $VERSION."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "feat: update typemouse to $VERSION"
+          git push
+          rm -f "$KEY"
+

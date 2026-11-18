@@ -194,6 +194,8 @@ After an update, remove TypeMouse from the Accessibility list and grant permissi
 1. Push a version tag: `git tag v0.2.0 && git push origin v0.2.0`
 2. The `Release` workflow runs the tests and builds a universal app.
 3. The workflow publishes the zip and its SHA-256 checksum with generated release notes.
+4. The workflow updates the cask in [fsargent/homebrew-tap](https://github.com/fsargent/homebrew-tap).
+   This step needs the `HOMEBREW_TAP_DEPLOY_KEY` secret. Without it, the step prints a warning and skips.
 
 ## Build and install from source
 
