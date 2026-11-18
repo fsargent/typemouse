@@ -88,7 +88,7 @@ final class HintMode {
             return
         case .enter:
             let hits = labels.indices.filter { labels[$0].hasPrefix(typed) }
-            if hits.count == 1 { fire(hits[0], ClickKind(key)) }
+            if hits.count == 1 { fire(hits[0], ClickKind(key), chain: ClickKind.isChain(key)) }
             return
         case .tab:
             enterSearch()
@@ -102,7 +102,7 @@ final class HintMode {
         let hits = labels.indices.filter { labels[$0].hasPrefix(next) }
         guard !hits.isEmpty else { NSSound.beep(); return }
         if hits.count == 1, labels[hits[0]] == next {
-            fire(hits[0], ClickKind(key))
+            fire(hits[0], ClickKind(key), chain: ClickKind.isChain(key))
             return
         }
         typed = next
@@ -132,7 +132,7 @@ final class HintMode {
     private func handleSearch(_ key: KeyEvent) {
         switch key.special {
         case .enter:
-            if matches.indices.contains(highlight) { fire(matches[highlight], ClickKind(key)) }
+            if matches.indices.contains(highlight) { fire(matches[highlight], ClickKind(key), chain: ClickKind.isChain(key)) }
             return
         case .backspace:
             if query.isEmpty { phase = .labels; typed = ""; render(); return }
@@ -190,10 +190,25 @@ final class HintMode {
 
     // MARK: - Action
 
-    private func fire(_ index: Int, _ kind: ClickKind) {
+    private func fire(_ index: Int, _ kind: ClickKind, chain: Bool = false) {
         let target = targets[index]
         let strategy = config.clickStrategy[app?.bundleIdentifier ?? ""] ?? .auto
         let restore = config.restoreMousePosition
+        if chain {
+            // Stay in click mode. Empty targets make key presses wait (Esc still exits) until the new scan.
+            overlay.hide()
+            targets = []
+            labels = []
+            DispatchQueue.main.async {
+                Actuator.perform(kind, on: target, strategy: strategy, restoreMouse: restore)
+                // Give the app a moment to react to the click, then label what is on screen now.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+                    guard let self, self.isActive else { return }
+                    self.start(search: false)
+                }
+            }
+            return
+        }
         exit()
         // Let the overlay leave the screen before we post events.
         DispatchQueue.main.async {

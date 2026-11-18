@@ -110,9 +110,9 @@ final class SettingsModel: ObservableObject {
         }
     }
 
-    /// Removes the second hotkey. The main hotkey cannot be removed, so every mode stays reachable.
+    /// Clears one hotkey. A mode with no hotkey is off until you add one.
     func remove(_ slot: Slot) {
-        guard slot.index > 0, hotkey(slot) != nil else { return }
+        guard hotkey(slot) != nil else { return }
         config.hotkeys[keyPath: slot.mode.keyPath].remove(at: slot.index)
         commit()
     }
@@ -180,7 +180,7 @@ struct SettingsView: View {
                         }
                     }
                 }
-                Text("Click a hotkey, then press the new key combination. Press Esc to cancel. Each mode can have a second hotkey. Another app can own a hotkey without a warning. If a hotkey does nothing, try another.")
+                Text("Click a hotkey, then press the new key combination. Press Esc to cancel. Each mode can have a second hotkey. Click × to clear a hotkey and turn that mode off. Another app can own a hotkey without a warning. If a hotkey does nothing, try another.")
                     .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
 
@@ -236,16 +236,19 @@ struct SettingsView: View {
             HStack(spacing: 2) {
                 Button(recording ? "Press keys…" : (HotkeySpec(hotkey)?.displayString ?? hotkey)) { model.record(slot) }
                     .frame(minWidth: 110)
-                if slot.index > 0 {
-                    Button { model.remove(slot) } label: { Image(systemName: "xmark.circle.fill") }
-                        .buttonStyle(.borderless)
-                        .help("Remove this hotkey")
-                }
+                Button { model.remove(slot) } label: { Image(systemName: "xmark.circle.fill") }
+                    .buttonStyle(.borderless)
+                    .help("Clear this hotkey")
             }
         } else if slot.index == model.hotkeys(slot.mode).count {
             // Only the next free slot shows an "add" button.
-            Button(recording ? "Press keys…" : "+ Add") { model.record(slot) }
-                .frame(minWidth: 110)
+            HStack(spacing: 2) {
+                if slot.index == 0 && !recording {
+                    Text("Not set").foregroundStyle(.secondary)
+                }
+                Button(recording ? "Press keys…" : "+ Add") { model.record(slot) }
+                    .frame(minWidth: 110)
+            }
         }
     }
 

@@ -3,13 +3,15 @@ import Foundation
 /// User configuration, read from ~/.config/typemouse/config.json.
 /// Every key is optional. Missing keys keep their defaults.
 public struct Config: Codable, Equatable {
-    /// Each mode can have several hotkeys. In the file, a mode takes one string ("hyper+k")
-    /// or a list (["hyper+k", "hyper+backspace"]).
+    /// Each mode can have several hotkeys. In the file, a mode takes one string ("hyper+k"),
+    /// a list (["hyper+k", "hyper+backspace"]), or [] / "" for no hotkey.
+    /// A missing key keeps the default.
     public struct Hotkeys: Codable, Equatable {
-        public var click = ["hyper+space"]
-        public var search = ["hyper+k"]
+        public var click = ["hyper+j"]
+        /// No default: search is also one key away inside click mode (/ or Tab).
+        public var search: [String] = []
         public var window = ["hyper+l"]
-        public var picker = ["hyper+j"]
+        public var picker = ["hyper+k"]
 
         enum CodingKeys: String, CodingKey { case click, search, window, picker }
 
@@ -33,8 +35,11 @@ public struct Config: Codable, Equatable {
         }
 
         private static func decode(_ c: KeyedDecodingContainer<CodingKeys>, _ key: CodingKeys) throws -> [String]? {
-            if let list = try? c.decodeIfPresent([String].self, forKey: key) { return list }
-            return try c.decodeIfPresent(String.self, forKey: key).map { [$0] }
+            if let list = try? c.decodeIfPresent([String].self, forKey: key) {
+                return list.filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+            }
+            // "" means no hotkey.
+            return try c.decodeIfPresent(String.self, forKey: key).map { $0.trimmingCharacters(in: .whitespaces).isEmpty ? [] : [$0] }
         }
 
         /// One hotkey stays a plain string, so simple files stay simple.

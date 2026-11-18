@@ -311,7 +311,7 @@ extension AppDelegate: NSMenuDelegate {
         // Hotkeys can change in the settings window or the file, so label the items when the menu opens.
         for (item, title, keyPath) in modeMenuItems {
             let shown = config.hotkeys[keyPath: keyPath].map { HotkeySpec($0)?.displayString ?? $0 }
-            item.title = "\(title)  (\(shown.joined(separator: " or ")))"
+            item.title = shown.isEmpty ? "\(title)  (no hotkey)" : "\(title)  (\(shown.joined(separator: " or ")))"
         }
     }
 }

@@ -117,7 +117,7 @@ final class HotkeyAndConfigTests: XCTestCase {
         let json = #"{"hotkeys": {"window": "hyper+w"}, "windowPins": {"s": "com.tinyspeck.slackmacgap"}}"#
         let c = try Config.decode(Data(json.utf8))
         XCTAssertEqual(c.hotkeys.window, ["hyper+w"])
-        XCTAssertEqual(c.hotkeys.click, ["hyper+space"])
+        XCTAssertEqual(c.hotkeys.click, ["hyper+j"])
         XCTAssertEqual(c.hintCharacters, "fjdkslaghrueiwotyvmcxbn")
         XCTAssertEqual(c.pins, ["s": "com.tinyspeck.slackmacgap"])
     }
@@ -138,6 +138,14 @@ final class HotkeyAndConfigTests: XCTestCase {
         let text = String(decoding: try c.encoded(), as: UTF8.self)
         XCTAssertTrue(text.contains(#""window" : "hyper+l""#), text)
         XCTAssertTrue(text.contains(#""hyper+backspace""#), text)
+    }
+
+    func testClearedHotkeysStayCleared() throws {
+        let c = try Config.decode(Data(#"{"hotkeys": {"click": [], "picker": ""}}"#.utf8))
+        XCTAssertEqual(c.hotkeys.click, [])
+        XCTAssertEqual(c.hotkeys.picker, [])
+        XCTAssertEqual(c.hotkeys.window, ["hyper+l"]) // missing key: default
+        XCTAssertEqual(try Config.decode(c.encoded()).hotkeys, c.hotkeys)
     }
 
     func testClickAfterPickerDefaultsOn() throws {
@@ -212,9 +220,10 @@ final class VisibilityTests: XCTestCase {
     }
 
     func testDefaultPickerHotkey() {
-        XCTAssertEqual(Config().hotkeys.picker, ["hyper+j"])
-        XCTAssertEqual(Config().hotkeys.search, ["hyper+k"])
+        XCTAssertEqual(Config().hotkeys.click, ["hyper+j"])
+        XCTAssertEqual(Config().hotkeys.picker, ["hyper+k"])
         XCTAssertEqual(Config().hotkeys.window, ["hyper+l"])
+        XCTAssertEqual(Config().hotkeys.search, [])
     }
 }
 

@@ -17,23 +17,28 @@ It is a personal replacement for [Homerow](https://www.homerow.app), with a sepa
 
 | Hotkey | Mode | What it does |
 |---|---|---|
-| `hyper+space` | Click | Shows a label on each clickable element. Type the label to click it. |
-| `hyper+k` | Search | Type part of an element's text. Press `Enter` to click the highlighted match. |
+| `hyper+j` | Click | Shows a label on each clickable element. Type the label to click it. |
+| `hyper+k` | Window picker | Shows one label on each visible window. Press the label to focus that window. |
 | `hyper+l` | Window | Shows a list of windows with stable labels. Type a label to focus the window. |
-| `hyper+j` | Window picker | Shows one label on each visible window. Press the label to focus that window. |
+| none | Search | Type part of an element's text. Press `Enter` to click the highlighted match. |
+
+Search has no hotkey by default. Press `/` or `Tab` in click mode to search, or add a hotkey in Settings.
 
 ### Click mode keys
 
 | Key | Action |
 |---|---|
 | label | Click |
-| `⇧` + last label key | Right-click |
+| `⇧` + last label key | Chain click: click, then show new labels and stay in click mode |
+| `⌃` + last label key | Right-click |
 | `⌘` + last label key | ⌘-click (for example, open a link in a new tab) |
-| `⌃` + last label key | Double-click |
-| `⌥` + last label key | Move the mouse only (hover) |
+| `⌥` + last label key | Double-click |
+| `⌃⌥` + last label key | Move the mouse only (hover) |
 | `/` or `Tab` | Switch to search |
 | `Backspace` | Delete the last typed key |
 | `Esc` or the hotkey again | Exit |
+
+Shift combines with the other modifiers. For example, `⇧⌘` + label opens a link in a new tab and stays in click mode for the next link.
 
 If a menu is open, click mode labels only the menu items.
 Open a menu-bar menu with one label, then press the hotkey again to pick an item.
@@ -45,7 +50,7 @@ Open a menu-bar menu with one label, then press the hotkey again to pick an item
 | text | Filter by title, description, value, or placeholder |
 | `Tab` / `↓` / `⌃N` | Next match |
 | `⇧Tab` / `↑` / `⌃P` | Previous match |
-| `Enter` (with `⇧`, `⌘`, `⌃`, `⌥`) | Click the highlighted match (same modifiers as click mode) |
+| `Enter` (with `⇧`, `⌃`, `⌘`, `⌥`) | Click the highlighted match (same modifiers as click mode) |
 | `Backspace` on an empty query | Go back to labels |
 
 ### Window picker keys
@@ -85,7 +90,7 @@ Pin letters to apps so that they never change. A pinned app that is not running 
 
 Open **Settings…** from the menu-bar icon, or open TypeMouse again while it runs.
 
-- **Hotkeys**: click a hotkey, then press the new key combination. Press `Esc` to cancel. Click **+ Add** to give a mode a second hotkey.
+- **Hotkeys**: click a hotkey, then press the new key combination. Press `Esc` to cancel. Click **+ Add** to give a mode a second hotkey. Click **×** to clear a hotkey and turn that mode off.
 - **Labels**: hint characters and label size.
 - **Behavior**: mouse position after a click, and launch at login.
 
@@ -99,7 +104,7 @@ TypeMouse writes the defaults on first launch. Every key is optional.
 ```json
 {
   "hintCharacters": "fjdkslaghrueiwotyvmcxbn",
-  "hotkeys": { "click": "hyper+space", "search": "hyper+k", "window": "hyper+l", "picker": "hyper+j" },
+  "hotkeys": { "click": "hyper+j", "picker": "hyper+k", "window": "hyper+l", "search": [] },
   "windowPins": { "c": "com.google.Chrome", "s": "com.tinyspeck.slackmacgap", "t": "com.mitchellh.ghostty" },
   "clickStrategy": { "com.example.app": "mouse" },
   "restoreMousePosition": true,
@@ -110,7 +115,8 @@ TypeMouse writes the defaults on first launch. Every key is optional.
 ```
 
 - Hotkey modifiers: `hyper` (⌘⌃⌥⇧), `meh` (⌃⌥⇧), `cmd`, `ctrl`, `opt`, `shift`.
-- A mode takes one hotkey or a list, for example `"search": ["hyper+k", "hyper+backspace"]`.
+- A mode takes one hotkey or a list, for example `"search": ["hyper+o", "hyper+backspace"]`.
+- `[]` or `""` means no hotkey. A missing key uses the default.
 - `clickStrategy`: `auto` (default) uses AXPress, with a mouse click for web content and when AXPress fails. `press` never moves the mouse. `mouse` always sends a mouse click.
 - `enhancedUserInterfaceApps`: apps that get the `AXEnhancedUserInterface` flag. Chromium browsers need it to show web page labels. The default lists Chrome, Brave, Edge, Arc, Vivaldi, and Opera. The flag can slow window moves by tools such as Rectangle or Raycast.
 - To find a bundle identifier, run `osascript -e 'id of app "Slack"'`.

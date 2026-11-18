@@ -5,15 +5,19 @@ import TypeMouseCore
 enum ClickKind {
     case left, right, command, double, hover
 
-    /// Modifiers on the final key choose the kind of click.
+    /// Modifiers on the final key choose the kind of click. Shift does not change the kind:
+    /// it chains (see `isChain`), so Shift+⌘ chains ⌘-clicks.
     init(_ key: KeyEvent) {
         if key.hyperHeld { self = .left }
-        else if key.shift { self = .right }
+        else if key.control && key.option { self = .hover }
         else if key.command { self = .command }
-        else if key.control { self = .double }
-        else if key.option { self = .hover }
+        else if key.control { self = .right }
+        else if key.option { self = .double }
         else { self = .left }
     }
+
+    /// Shift on the final key: click, then show new labels and stay in click mode.
+    static func isChain(_ key: KeyEvent) -> Bool { key.shift && !key.hyperHeld }
 }
 
 /// Performs a click on a target, with AXPress or with a synthetic mouse event.
