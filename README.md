@@ -34,7 +34,7 @@ Search has no hotkey by default. Press `/` or `Tab` in click mode to search, or 
 | `⌘` + last label key | ⌘-click (for example, open a link in a new tab) |
 | `⌥` + last label key | Double-click |
 | `⌃⌥` + last label key | Move the mouse only (hover) |
-| `Space` | Turn chain mode on or off. In chain mode, every click is a chain click. |
+| `Space` | Turn chain mode on or off. In chain mode, every click is a chain click. To start in chain mode, set `chainModeByDefault`. |
 | `↑` / `↓` in chain mode | Make the chain click delay 50 ms longer or shorter |
 | `/` or `Tab` | Switch to search |
 | `Backspace` | Delete the last typed key |
@@ -118,6 +118,7 @@ TypeMouse writes the defaults on first launch. Every key is optional.
   "restoreMousePosition": true,
   "clickAfterPicker": true,
   "chainDelayMs": 500,
+  "chainModeByDefault": false,
   "prioritizeLabels": true,
   "labelFontSize": 12,
   "enhancedUserInterfaceApps": ["com.google.Chrome", "com.brave.Browser", "…"]

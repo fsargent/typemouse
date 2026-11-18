@@ -31,7 +31,7 @@ final class HintMode {
 
     /// - Parameter keepChain: true for the rescan after a chain click, so chain mode stays on.
     func start(search: Bool, keepChain: Bool = false) {
-        if !keepChain { chainMode = false }
+        if !keepChain { chainMode = config.chainModeByDefault }
         guard let app = NSWorkspace.shared.frontmostApplication else { return }
         // Swallow keys from now on. Keys typed during the scan queue up and apply after it.
         capture.setActive(true)

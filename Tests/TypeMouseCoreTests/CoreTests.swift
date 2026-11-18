@@ -148,6 +148,11 @@ final class HotkeyAndConfigTests: XCTestCase {
         XCTAssertEqual(try Config.decode(c.encoded()).hotkeys, c.hotkeys)
     }
 
+    func testChainModeByDefaultIsOff() throws {
+        XCTAssertFalse(Config().chainModeByDefault)
+        XCTAssertTrue(try Config.decode(Data(#"{"chainModeByDefault": true}"#.utf8)).chainModeByDefault)
+    }
+
     func testChainDelay() throws {
         XCTAssertEqual(Config().chainDelayMs, 500)
         XCTAssertEqual(try Config.decode(Data(#"{"chainDelayMs": 1200}"#.utf8)).chainDelayMs, 1200)

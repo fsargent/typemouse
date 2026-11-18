@@ -74,6 +74,8 @@ public struct Config: Codable, Equatable {
     /// Click mode gives the shortest labels to buttons, then text fields, then links, then other
     /// elements, then the app's own UI (a browser's tabs and toolbar). Off: reading order.
     public var prioritizeLabels = true
+    /// Click mode starts with chain mode on. Space still turns it off for that session.
+    public var chainModeByDefault = false
     /// Chain click: milliseconds to wait after a click before the new labels appear,
     /// so the app can react (open a menu, load a page).
     public var chainDelayMs = 500
@@ -103,6 +105,7 @@ public struct Config: Codable, Equatable {
         restoreMousePosition = try c.decodeIfPresent(Bool.self, forKey: .restoreMousePosition) ?? d.restoreMousePosition
         clickAfterPicker = try c.decodeIfPresent(Bool.self, forKey: .clickAfterPicker) ?? d.clickAfterPicker
         prioritizeLabels = try c.decodeIfPresent(Bool.self, forKey: .prioritizeLabels) ?? d.prioritizeLabels
+        chainModeByDefault = try c.decodeIfPresent(Bool.self, forKey: .chainModeByDefault) ?? d.chainModeByDefault
         chainDelayMs = max(0, try c.decodeIfPresent(Int.self, forKey: .chainDelayMs) ?? d.chainDelayMs)
         labelFontSize = try c.decodeIfPresent(Double.self, forKey: .labelFontSize) ?? d.labelFontSize
         enhancedUserInterfaceApps = try c.decodeIfPresent([String].self, forKey: .enhancedUserInterfaceApps) ?? d.enhancedUserInterfaceApps

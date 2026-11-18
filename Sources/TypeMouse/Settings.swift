@@ -205,6 +205,9 @@ struct SettingsView: View {
             }
 
             Section("Behavior") {
+                Toggle("Start click mode in chain mode", isOn: Binding(
+                    get: { model.config.chainModeByDefault },
+                    set: { model.config.chainModeByDefault = $0; model.commit() }))
                 numberRow("Chain click delay", unit: "ms", range: 0...5000, step: 100, value: Binding(
                     get: { model.config.chainDelayMs },
                     set: { model.config.chainDelayMs = $0; model.commit() }))
