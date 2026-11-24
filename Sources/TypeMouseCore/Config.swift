@@ -3,6 +3,19 @@ import Foundation
 /// User configuration, read from ~/.config/typemouse/config.json.
 /// Every key is optional. Missing keys keep their defaults.
 public struct Config: Codable, Equatable {
+    public enum Mode: String, CaseIterable {
+        case click, search, windowSelection, windowList, windowPicker, missionControl, grid, scroll, windowManagement
+
+        var parent: Mode? {
+            switch self {
+            case .search: return .click
+            case .windowList, .windowPicker, .missionControl: return .windowSelection
+            case .scroll: return .grid
+            default: return nil
+            }
+        }
+    }
+
     /// Each mode can have several hotkeys. In the file, a mode takes one string ("hyper+k"),
     /// a list (["hyper+k", "hyper+backspace"]), or [] / "" for no hotkey.
     /// A missing key keeps the default.
@@ -12,8 +25,13 @@ public struct Config: Codable, Equatable {
         public var search: [String] = []
         public var window = ["hyper+l"]
         public var picker = ["hyper+k"]
+        public var missionControl = ["hyper+return"]
+        public var grid = ["hyper+h"]
+        public var scroll = ["hyper+u"]
+        /// Per-command overrides. An empty string clears the command's default hotkey.
+        public var windowManagement: [String: String] = [:]
 
-        enum CodingKeys: String, CodingKey { case click, search, window, picker }
+        enum CodingKeys: String, CodingKey { case click, search, window, picker, missionControl, grid, scroll, windowManagement }
 
         public init() {}
 
@@ -24,6 +42,10 @@ public struct Config: Codable, Equatable {
             search = try Self.decode(c, .search) ?? d.search
             window = try Self.decode(c, .window) ?? d.window
             picker = try Self.decode(c, .picker) ?? d.picker
+            missionControl = try Self.decode(c, .missionControl) ?? d.missionControl
+            grid = try Self.decode(c, .grid) ?? d.grid
+            scroll = try Self.decode(c, .scroll) ?? d.scroll
+            windowManagement = try c.decodeIfPresent([String: String].self, forKey: .windowManagement) ?? [:]
         }
 
         public func encode(to encoder: Encoder) throws {
@@ -32,6 +54,14 @@ public struct Config: Codable, Equatable {
             try Self.encode(search, &c, .search)
             try Self.encode(window, &c, .window)
             try Self.encode(picker, &c, .picker)
+            try Self.encode(missionControl, &c, .missionControl)
+            try Self.encode(grid, &c, .grid)
+            try Self.encode(scroll, &c, .scroll)
+            if !windowManagement.isEmpty { try c.encode(windowManagement, forKey: .windowManagement) }
+        }
+
+        public func shortcut(for command: WindowCommand) -> String {
+            windowManagement[command.rawValue] ?? command.defaultHotkey
         }
 
         private static func decode(_ c: KeyedDecodingContainer<CodingKeys>, _ key: CodingKeys) throws -> [String]? {
@@ -63,6 +93,8 @@ public struct Config: Codable, Equatable {
     public static let defaultHintCharacters = "fjdkslaghrueiwotyvmcxbn"
     public var hintCharacters = Config.defaultHintCharacters
     public var hotkeys = Hotkeys()
+    /// Mode switches are separate from shortcuts so disabling a mode keeps its bindings.
+    public var disabledModes: [String] = []
     /// Window mode: letter -> bundle identifier, for example {"s": "com.tinyspeck.slackmacgap"}.
     public var windowPins: [String: String] = [:]
     /// Bundle identifier -> click strategy. Apps not listed use `auto`.
@@ -83,6 +115,10 @@ public struct Config: Codable, Equatable {
     /// so the app can react (open a menu, load a page).
     public var chainDelayMs = 250
     public var labelFontSize: Double = 12
+    public var gridHand: GridNavigation.Hand = .right
+    public var scrollKeys: ScrollKeys = .vim
+    /// Scroll distance in points per second. Shift multiplies this by three.
+    public var scrollSpeed = 600
 
     /// Chromium browsers build the web page tree only when AXEnhancedUserInterface is on.
     /// AXManualAccessibility (enough for Electron) does not work for them.
@@ -103,6 +139,7 @@ public struct Config: Codable, Equatable {
         let d = Config()
         hintCharacters = try c.decodeIfPresent(String.self, forKey: .hintCharacters) ?? d.hintCharacters
         hotkeys = try c.decodeIfPresent(Hotkeys.self, forKey: .hotkeys) ?? d.hotkeys
+        disabledModes = try c.decodeIfPresent([String].self, forKey: .disabledModes) ?? d.disabledModes
         windowPins = try c.decodeIfPresent([String: String].self, forKey: .windowPins) ?? d.windowPins
         clickStrategy = try c.decodeIfPresent([String: ClickStrategy].self, forKey: .clickStrategy) ?? d.clickStrategy
         restoreMousePosition = try c.decodeIfPresent(Bool.self, forKey: .restoreMousePosition) ?? d.restoreMousePosition
@@ -112,10 +149,22 @@ public struct Config: Codable, Equatable {
         chainModeByDefault = try c.decodeIfPresent(Bool.self, forKey: .chainModeByDefault) ?? d.chainModeByDefault
         chainDelayMs = max(0, try c.decodeIfPresent(Int.self, forKey: .chainDelayMs) ?? d.chainDelayMs)
         labelFontSize = try c.decodeIfPresent(Double.self, forKey: .labelFontSize) ?? d.labelFontSize
+        gridHand = try c.decodeIfPresent(GridNavigation.Hand.self, forKey: .gridHand) ?? d.gridHand
+        scrollKeys = try c.decodeIfPresent(ScrollKeys.self, forKey: .scrollKeys) ?? d.scrollKeys
+        scrollSpeed = min(5000, max(50, try c.decodeIfPresent(Int.self, forKey: .scrollSpeed) ?? d.scrollSpeed))
         enhancedUserInterfaceApps = try c.decodeIfPresent([String].self, forKey: .enhancedUserInterfaceApps) ?? d.enhancedUserInterfaceApps
     }
 
     public var hintAlphabet: [Character] { Hints.unique(Array(hintCharacters.lowercased())) }
+
+    public func isModeEnabled(_ mode: Mode) -> Bool {
+        !disabledModes.contains(mode.rawValue) && (mode.parent.map { isModeEnabled($0) } ?? true)
+    }
+
+    public mutating func setModeEnabled(_ mode: Mode, _ enabled: Bool) {
+        disabledModes.removeAll { $0 == mode.rawValue }
+        if !enabled { disabledModes.append(mode.rawValue) }
+    }
 
     public var pins: [Character: String] {
         var out: [Character: String] = [:]
@@ -123,6 +172,25 @@ public struct Config: Codable, Equatable {
             if let ch = k.lowercased().first, k.count == 1 { out[ch] = v }
         }
         return out
+    }
+
+    public var availableWindowPinLetters: [Character] {
+        let assigned = pins
+        return Array("abcdefghijklmnopqrstuvwxyz".filter { assigned[$0] == nil })
+    }
+
+    @discardableResult
+    public mutating func setWindowPin(_ letter: Character, for bundleID: String) -> Bool {
+        let key = letter.lowercased()
+        guard key.count == 1, "abcdefghijklmnopqrstuvwxyz".contains(key), !bundleID.isEmpty else { return false }
+        guard !windowPins.contains(where: { $0.key.lowercased() == key && $0.value != bundleID }) else { return false }
+        removeWindowPin(for: bundleID)
+        windowPins[key] = bundleID
+        return true
+    }
+
+    public mutating func removeWindowPin(for bundleID: String) {
+        windowPins = windowPins.filter { $0.value != bundleID }
     }
 
     public static func decode(_ data: Data) throws -> Config {

@@ -6,26 +6,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let capture = KeyCapture()
     private let hotkeys = HotkeyManager()
     private let hyperKey = HyperKey()
+    private let tiler = WindowTiler()
+    private var recordingHotkey = false
+    private var modeShortcuts: [(spec: HotkeySpec, action: () -> Void)] = []
+    private var windowShortcuts: [(spec: HotkeySpec, command: WindowCommand)] = []
     private var config = ConfigStore.load()
     private lazy var hints = HintMode(capture: capture, config: config)
     private lazy var windows = WindowMode(capture: capture, config: config)
     private lazy var picker = WindowPicker(capture: capture, config: config)
+    private lazy var grid = GridMode(capture: capture, config: config)
     private var statusItem: NSStatusItem?
     private var configWatcher: DispatchSourceFileSystemObject?
     private var permissionTimer: Timer?
     private var flagTimer: Timer?
     private var loginMenuItem: NSMenuItem?
-    private var modeMenuItems: [(NSMenuItem, String, KeyPath<Config.Hotkeys, [String]>)] = []
+    private var modeMenuItems: [(NSMenuItem, String, Config.Mode, KeyPath<Config.Hotkeys, [String]>)] = []
     private lazy var settings = SettingsWindowController(
         config: config,
-        save: { ConfigStore.save($0) },
+        save: { [weak self] next in
+            if ConfigStore.save(next) { self?.applyConfig(next) }
+        },
         recording: { [weak self] on in
-            // While a field records, release our hotkeys so the keys reach the settings window.
-            if on { self?.hotkeys.unregisterAll() } else { self?.registerHotkeys() }
+            self?.recordingHotkey = on
+            self?.registerHotkeys()
         })
 
     /// Puts Caps Lock back.
     func applicationWillTerminate(_ note: Notification) {
+        grid.exit(movePointer: false)
         hyperKey.setEnabled(false)
     }
 
@@ -35,6 +43,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         setUpStatusItem()
         registerHotkeys()
         capture.onKey = { [weak self] in self?.route($0) }
+        capture.onKeyUp = { [weak self] in self?.grid.keyUp($0) }
+        capture.onFlagsChanged = { [weak self] in self?.grid.flagsChanged($0) }
+        capture.onInterrupted = { [weak self] in self?.grid.releaseKeys() }
         picker.onPicked = { [weak self] info in
             guard let self, self.config.clickAfterPicker else { return }
             self.startClickModeWhenFocused(info)
@@ -88,33 +99,61 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func registerHotkeys() {
         hotkeys.unregisterAll()
-        let pairs: [(String, [String], () -> Void)] = [
-            ("click", config.hotkeys.click, { [weak self] in self?.toggleHints(search: false) }),
-            ("search", config.hotkeys.search, { [weak self] in self?.toggleHints(search: true) }),
-            ("window", config.hotkeys.window, { [weak self] in self?.toggleWindows() }),
-            ("picker", config.hotkeys.picker, { [weak self] in self?.togglePicker() }),
+        modeShortcuts = []
+        windowShortcuts = []
+        // While a field records, let the keys reach the settings window.
+        guard !recordingHotkey else { return }
+        let pairs: [(Config.Mode, String, [String], () -> Void)] = [
+            (.click, "click", config.hotkeys.click, { [weak self] in self?.toggleHints(search: false) }),
+            (.search, "search", config.hotkeys.search, { [weak self] in self?.toggleHints(search: true) }),
+            (.windowList, "window", config.hotkeys.window, { [weak self] in self?.toggleWindows() }),
+            (.windowPicker, "picker", config.hotkeys.picker, { [weak self] in self?.togglePicker() }),
+            (.missionControl, "mission control picker", config.hotkeys.missionControl, { [weak self] in self?.togglePicker(missionControl: true) }),
+            (.grid, "grid", config.hotkeys.grid, { [weak self] in self?.toggleGrid() }),
+            (.scroll, "scroll", config.hotkeys.scroll, { [weak self] in self?.toggleGrid(pickScrollArea: true) }),
         ]
-        for (name, strings, action) in pairs {
+        for (mode, name, strings, action) in pairs where config.isModeEnabled(mode) {
             for string in strings {
                 guard let spec = HotkeySpec(string) else { Log.info("bad hotkey \"\(string)\""); continue }
-                _ = hotkeys.register(spec) {
+                let registered = hotkeys.register(spec) { [weak self] in
                     // Logged, so a press that never arrives is visible: it leaves no line.
                     Log.info("hotkey \(name) (\(string)) in \(NSWorkspace.shared.frontmostApplication?.localizedName ?? "?")")
                     action()
+                    if self?.capture.active == true { self?.capture.passNextKeyUp(Int64(spec.keyCode)) }
                 }
+                if registered { modeShortcuts.append((spec, action)) }
             }
+        }
+        guard config.isModeEnabled(.windowManagement) else { return }
+        windowShortcuts = WindowCommand.allCases.compactMap { command in
+            guard let spec = HotkeySpec(config.hotkeys.shortcut(for: command)),
+                  hotkeys.register(spec, { [weak self] in self?.arrangeWindow(command) }) else { return nil }
+            return (spec, command)
         }
     }
 
+    private func arrangeWindow(_ command: WindowCommand) {
+        guard config.isModeEnabled(.windowManagement), AX.isTrusted(prompt: true) else { return }
+        hints.exit()
+        windows.exit()
+        picker.exit()
+        grid.exit(movePointer: false)
+        tiler.apply(command)
+    }
+
     private func toggleHints(search: Bool) {
-        guard capture.active || startCapture(prompt: true) else { return }
+        guard config.isModeEnabled(search ? .search : .click),
+              capture.active || startCapture(prompt: true) else { return }
+        grid.exit()
         windows.exit()
         picker.exit()
         if hints.isActive { hints.exit("hotkey pressed again") } else { hints.start(search: search) }
     }
 
     private func toggleWindows() {
-        guard capture.active || startCapture(prompt: true) else { return }
+        guard config.isModeEnabled(.windowList),
+              capture.active || startCapture(prompt: true) else { return }
+        grid.exit()
         hints.exit()
         picker.exit()
         if windows.isActive { windows.hotkeyAgain() } else { windows.start() }
@@ -123,12 +162,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Click mode scans the front app's focused window, so wait until the picked window has focus.
     /// Checks every 30 ms for up to 0.8 s, then starts click mode anyway.
     private func startClickModeWhenFocused(_ info: WindowInfo, deadline: Date = Date().addingTimeInterval(0.8)) {
+        guard config.isModeEnabled(.click) else { return }
         let pid = info.app.processIdentifier
         let front = NSWorkspace.shared.frontmostApplication?.processIdentifier == pid
         let focused = info.id == nil
             || AXUIElementCreateApplication(pid).element(kAXFocusedWindowAttribute)?.windowID == info.id
         if (front && focused) || Date() >= deadline {
-            guard !hints.isActive, !windows.isActive, !picker.isActive else { return }
+            guard !hints.isActive, !windows.isActive, !picker.isActive, !grid.isActive else { return }
             hints.start(search: false)
             return
         }
@@ -137,36 +177,62 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func togglePicker() {
-        guard capture.active || startCapture(prompt: true) else { return }
+    private func togglePicker(missionControl: Bool = false) {
+        guard config.isModeEnabled(missionControl ? .missionControl : .windowPicker),
+              capture.active || startCapture(prompt: true) else { return }
+        grid.exit()
         hints.exit()
         windows.exit()
-        if picker.isActive { picker.exit() } else { picker.start() }
+        picker.clearDismissedOverview()
+        if picker.isActive {
+            let switchToOverview = missionControl && !picker.isShowingOverview
+            picker.exit()
+            if switchToOverview { picker.start(missionControl: true) }
+        } else {
+            picker.start(missionControl: missionControl)
+        }
+    }
+
+    private func toggleGrid(pickScrollArea: Bool = false) {
+        guard config.isModeEnabled(pickScrollArea ? .scroll : .grid),
+              capture.active || startCapture(prompt: true) else { return }
+        hints.exit()
+        windows.exit()
+        picker.exit()
+        let wasActive = grid.isActive
+        let switchMode = pickScrollArea ? grid.isChoosingPoint : grid.isChoosingScrollArea
+        grid.exit(movePointer: !pickScrollArea)
+        guard !wasActive || switchMode else { return }
+        if pickScrollArea { grid.startChoosingScrollArea() } else { grid.start() }
     }
 
     /// While a mode is active the tap swallows everything, including our own hotkeys,
     /// so we match them here too.
     private func route(_ key: KeyEvent) {
-        if matches(key, config.hotkeys.click) { toggleHints(search: false); return }
-        if matches(key, config.hotkeys.search) { toggleHints(search: true); return }
-        if matches(key, config.hotkeys.window) { toggleWindows(); return }
-        if matches(key, config.hotkeys.picker) { togglePicker(); return }
+        if !key.isRepeat {
+            if let shortcut = modeShortcuts.first(where: { matches(key, $0.spec) }) {
+                shortcut.action()
+                return
+            }
+            if let shortcut = windowShortcuts.first(where: { matches(key, $0.spec) }) {
+                arrangeWindow(shortcut.command)
+                return
+            }
+        }
         if hints.isActive { hints.handle(key) }
         else if windows.isActive { windows.handle(key) }
         else if picker.isActive { picker.handle(key) }
+        else if grid.isActive { grid.handle(key) }
         else { capture.setActive(false) }
     }
 
-    private func matches(_ key: KeyEvent, _ strings: [String]) -> Bool {
+    private func matches(_ key: KeyEvent, _ spec: HotkeySpec) -> Bool {
         var mods: HotkeySpec.Modifiers = []
         if key.command { mods.insert(.command) }
         if key.shift { mods.insert(.shift) }
         if key.option { mods.insert(.option) }
         if key.control { mods.insert(.control) }
-        return strings.contains { string in
-            guard let spec = HotkeySpec(string) else { return false }
-            return Int64(spec.keyCode) == key.keyCode && mods == spec.modifiers
-        }
+        return Int64(spec.keyCode) == key.keyCode && mods == spec.modifiers
     }
 
     // MARK: - Menu bar
@@ -175,12 +241,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         item.button?.image = NSImage(systemSymbolName: "cursorarrow.rays", accessibilityDescription: "TypeMouse")
         let menu = NSMenu()
-        for (title, action, keyPath) in [("Click mode", #selector(menuClick), \Config.Hotkeys.click),
-                                         ("Window list", #selector(menuWindows), \Config.Hotkeys.window),
-                                         ("Window picker", #selector(menuPicker), \Config.Hotkeys.picker)] {
+        for (title, action, mode, keyPath) in [("Click mode", #selector(menuClick), Config.Mode.click, \Config.Hotkeys.click),
+                                         ("Window list", #selector(menuWindows), Config.Mode.windowList, \Config.Hotkeys.window),
+                                         ("Window picker", #selector(menuPicker), Config.Mode.windowPicker, \Config.Hotkeys.picker),
+                                         ("Mission Control picker", #selector(menuMissionControl), Config.Mode.missionControl, \Config.Hotkeys.missionControl),
+                                         ("Grid mode", #selector(menuGrid), Config.Mode.grid, \Config.Hotkeys.grid),
+                                         ("Choose scrollable area", #selector(menuScroll), Config.Mode.scroll, \Config.Hotkeys.scroll)] {
             let mi = menu.addItem(withTitle: title, action: action, keyEquivalent: "")
             mi.target = self
-            modeMenuItems.append((mi, title, keyPath))
+            modeMenuItems.append((mi, title, mode, keyPath))
         }
         menu.addItem(.separator())
         menu.addItem(withTitle: "Settings…", action: #selector(openSettings), keyEquivalent: ",").target = self
@@ -216,6 +285,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { self.togglePicker() }
     }
 
+    @objc private func menuMissionControl() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { self.togglePicker(missionControl: true) }
+    }
+
+    @objc private func menuGrid() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { self.toggleGrid() }
+    }
+
+    @objc private func menuScroll() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { self.toggleGrid(pickScrollArea: true) }
+    }
+
     @objc private func toggleLoginItem(_ sender: NSMenuItem) {
         LoginItem.set(!LoginItem.isEnabled)
     }
@@ -230,24 +311,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Config hot reload
 
+    private func applyConfig(_ next: Config) {
+        guard next != config else { return }
+        let accessibilityAppsChanged = next.enhancedUserInterfaceApps != config.enhancedUserInterfaceApps
+        Log.info("config reloaded")
+        config = next
+        hints.update(config: next)
+        windows.update(config: next)
+        picker.update(config: next)
+        grid.update(config: next)
+        if capture.isStarted { hyperKey.setEnabled(next.capsLockToHyper) }
+        settings.update(config: next)
+        registerHotkeys()
+        if accessibilityAppsChanged { AccessibilityActivator.activateAll(enhancedApps: next.enhancedUserInterfaceApps) }
+    }
+
     private func watchConfig() {
         let fd = open(ConfigStore.url.deletingLastPathComponent().path, O_EVTONLY)
         guard fd >= 0 else { return }
         let src = DispatchSource.makeFileSystemObjectSource(fileDescriptor: fd, eventMask: [.write, .rename], queue: .main)
-        src.setEventHandler { [weak self] in
-            guard let self else { return }
-            let next = ConfigStore.load()
-            guard next != self.config else { return }
-            Log.info("config reloaded")
-            self.config = next
-            self.hints.update(config: next)
-            self.windows.update(config: next)
-            self.picker.update(config: next)
-            if self.capture.isStarted { self.hyperKey.setEnabled(next.capsLockToHyper) }
-            self.settings.update(config: next)
-            self.registerHotkeys()
-            AccessibilityActivator.activateAll(enhancedApps: next.enhancedUserInterfaceApps)
-        }
+        src.setEventHandler { [weak self] in self?.applyConfig(ConfigStore.load()) }
         src.setCancelHandler { close(fd) }
         src.resume()
         configWatcher = src
@@ -258,12 +341,14 @@ enum ConfigStore {
     static let url = FileManager.default.homeDirectoryForCurrentUser
         .appendingPathComponent(".config/typemouse/config.json")
 
-    /// The file watcher picks up the change and applies it.
-    static func save(_ config: Config) {
+    @discardableResult
+    static func save(_ config: Config) -> Bool {
         do {
             try config.encoded().write(to: url, options: .atomic)
+            return true
         } catch {
             Log.info("config save failed: \(error)")
+            return false
         }
     }
 
@@ -318,7 +403,8 @@ extension AppDelegate: NSMenuDelegate {
     func menuWillOpen(_ menu: NSMenu) {
         loginMenuItem?.state = LoginItem.isEnabled ? .on : .off
         // Hotkeys can change in the settings window or the file, so label the items when the menu opens.
-        for (item, title, keyPath) in modeMenuItems {
+        for (item, title, mode, keyPath) in modeMenuItems {
+            item.isHidden = !config.isModeEnabled(mode)
             let shown = config.hotkeys[keyPath: keyPath].map { HotkeySpec($0)?.displayString ?? $0 }
             item.title = shown.isEmpty ? "\(title)  (no hotkey)" : "\(title)  (\(shown.joined(separator: " or ")))"
         }

@@ -19,7 +19,11 @@ It is a personal replacement for [Homerow](https://www.homerow.app), with a sepa
 |---|---|---|
 | `hyper+j` | Click | Shows a label on each clickable element. Type the label to click it. |
 | `hyper+k` | Window picker | Shows one label on each visible window. Press the label to focus that window. |
+| `hyper+return` | Mission Control picker | Opens Mission Control and labels its window previews. |
 | `hyper+l` | Window | Shows a list of windows with stable labels. Type a label to focus the window. |
+| `hyper+h` | Grid | Refines a mouse target through smaller grids. Press `Enter` to scroll there. |
+| `hyper+u` | Scroll | Labels scrollable areas in the focused window. Type a label to scroll there. |
+| Hyper + layout key | Window management | Moves and resizes the focused window. |
 | none | Search | Type part of an element's text. Press `Enter` to click the highlighted match. |
 
 All default hotkeys use Hyper: Command (⌘) + Control (⌃) + Option (⌥) + Shift (⇧) together.
@@ -86,6 +90,14 @@ Labels come from app names, so they stay the same when windows move:
 | `Backspace` | Delete the last typed key |
 | `Esc` or the hotkey again | Exit |
 
+### Mission Control picker
+
+Press Hyper + Return to open Mission Control and label the window previews on each display's current Space.
+The app name and window title appear above the label.
+Type a label to focus its window. Labels stay visible when you hover over a preview.
+Press Escape or the hotkey again to close Mission Control and its labels.
+If Mission Control is already open, Hyper + K also labels its previews.
+
 ### Window mode keys
 
 Window mode uses the same labels as the window picker. The list shows on every monitor.
@@ -103,15 +115,94 @@ Window mode uses the same labels as the window picker. The list shows on every m
 | Command (⌘) + `Q` | Quit the highlighted window's app |
 | `Esc` | Exit |
 
-Pin letters to apps so that they never change. A pinned app that is not running shows a "launch" row.
+To give an app a fixed letter, open **Settings → Window selection** and click **Pin an app…**.
+Use the letter menu to change the pin, or click **×** to remove it.
+A pinned app that is not running shows a "launch" row.
+
+### Grid mode keys
+
+Press Hyper + H to show a 3×3 grid over each display.
+On one display, the grid uses the hand you choose in **Settings → Grid**.
+The right-hand layout is the default:
+
+```text
+U I O
+J K L
+M , .
+```
+
+With two displays, the left display uses the left-hand keys, and the right display uses the right-hand keys:
+
+```text
+W E R      U I O
+S D F      J K L
+X C V      M , .
+```
+
+Each key replaces the grid with a smaller grid inside that cell.
+After the first selection, the grid shows your preferred keys. Either hand can refine the target.
+The blue marker shows the center of the selected cell.
+Opening the grid leaves the pointer where it is.
+Without a selection, Escape leaves the pointer alone. Space clicks there, and Enter starts scroll mode there.
+
+| Key | Action |
+|---|---|
+| Grid key | Select that cell and subdivide it |
+| `Backspace` | Undo one selection |
+| `Esc` or the hotkey again | Move the cursor to the target and exit |
+| `Space` | Click the target and exit, leaving the cursor there |
+| `Enter` | Move the cursor to the target and start scroll mode |
+| `Tab` | Restart display selection. With more than two displays, show the next pair. |
+
+### Scroll mode keys
+
+Press Hyper + U to label the scrollable areas in the focused window. Type a label to start scrolling there.
+Some apps do not report every scrollable area through Accessibility. Press Enter in the picker to scroll at the pointer.
+You can also press Enter from the grid to scroll at its selected point.
+Hold a direction key to scroll continuously. Release it to stop.
+Set the shortcut, letter keys, and speed under **Scroll mode** in **Settings → Grid**.
+
+| Layout | Up | Left | Down | Right |
+|---|---|---|---|---|
+| Vim (default) | `K` | `H` | `J` | `L` |
+| ESDF | `E` | `S` | `D` | `F` |
+| WASD | `W` | `A` | `S` | `D` |
+| IJKL | `I` | `J` | `K` | `L` |
+
+Arrow keys always scroll, with every layout.
+Hold Shift (⇧) for three times the configured speed.
+Hold Command (⌘) + Shift (⇧) for six times the configured speed.
+Press `Esc` to exit scroll mode.
+The default speed is 600 points per second.
+
+### Window management keys
+
+Hold Hyper and press a key in this layout. The position of the key matches the position of the window.
+
+```text
+W  E  R
+S  D  F
+X  C  V
+```
+
+- **S, F, E, C** attach the window to the left, right, top, or bottom edge. Repeat the key to cycle through half, two-thirds, and one-third.
+- **W, R, X, V** use the four corners. Each corner takes one quarter of the usable display area.
+- **D** cycles through the full usable display, a centered half, and a centered third. The window stays in its current Space.
+- **G** moves the window to the next display and keeps its relative size and position.
+
+Change or clear shortcuts in **Settings → Window management**.
 
 ## Settings
 
 Open **Settings…** from the menu-bar icon, or open TypeMouse again while it runs.
 
-- **Hotkeys**: click a hotkey, then press the new key combination. Press `Esc` to cancel. Click **+ Add** to give a mode a second hotkey. Click **×** to clear a hotkey and turn that mode off.
-- **Labels**: hint characters and label size.
-- **Behavior**: chain click delay (milliseconds), click mode after the window picker, mouse position after a click, and launch at login.
+Select a mode in the sidebar to see what it does, how to open it, and what you can change.
+Use the switch at the top of each mode page to enable or disable it. The switch keeps its saved hotkeys.
+**Click** includes Search. **Grid** includes Scroll mode. **Window selection** includes all three window selectors.
+Use **General** for Caps Lock as Hyper, launch at login, shared hint characters, and access to the config file.
+
+Click a hotkey to record a new combination. Press `Esc` to cancel.
+Use **Add** for a second hotkey or **×** to clear one. **Reset** restores the mode's default hotkeys.
 
 The settings window writes the same config file described below.
 
@@ -145,7 +236,8 @@ TypeMouse writes the defaults on first launch. Every key is optional.
 ```json
 {
   "hintCharacters": "fjdkslaghrueiwotyvmcxbn",
-  "hotkeys": { "click": "hyper+j", "picker": "hyper+k", "window": "hyper+l", "search": [] },
+  "disabledModes": [],
+  "hotkeys": { "click": "hyper+j", "picker": "hyper+k", "missionControl": "hyper+return", "window": "hyper+l", "grid": "hyper+h", "scroll": "hyper+u", "search": [] },
   "windowPins": { "c": "com.google.Chrome", "s": "com.tinyspeck.slackmacgap", "t": "com.mitchellh.ghostty" },
   "clickStrategy": { "com.example.app": "mouse" },
   "restoreMousePosition": true,
@@ -155,6 +247,9 @@ TypeMouse writes the defaults on first launch. Every key is optional.
   "capsLockToHyper": false,
   "prioritizeLabels": true,
   "labelFontSize": 12,
+  "gridHand": "right",
+  "scrollKeys": "vim",
+  "scrollSpeed": 600,
   "enhancedUserInterfaceApps": ["com.google.Chrome", "com.brave.Browser", "…"]
 }
 ```
@@ -163,6 +258,13 @@ TypeMouse writes the defaults on first launch. Every key is optional.
   `hyper` means all four. `meh` means Control, Option, and Shift.
 - A mode takes one hotkey or a list, for example `"search": ["hyper+o", "hyper+backspace"]`.
 - `[]` or `""` means no hotkey. A missing key uses the default.
+- `disabledModes`: choose from `click`, `search`, `windowSelection`, `windowList`, `windowPicker`, `missionControl`, `grid`, `scroll`, and `windowManagement`.
+  Disabling Click mode also disables Search. Disabling Window selection disables all three window selectors.
+  Scroll mode requires Grid mode.
+- `hotkeys.windowManagement` overrides individual window shortcuts. For example, `{"center":"ctrl+opt+d","nextDisplay":""}` changes Center and clears Move to next display.
+- `gridHand`: `left` or `right` (default). Sets the keys for one display and for refinements.
+- `scrollKeys`: `vim` (default), `esdf`, `wasd`, or `ijkl`. Arrow keys always work.
+- `scrollSpeed`: 50–5000 points per second, with a default of 600.
 - `clickStrategy`: `auto` (default) uses AXPress, with a mouse click for web content and when AXPress fails. `press` never moves the mouse. `mouse` always sends a mouse click.
 - `enhancedUserInterfaceApps`: apps that get the `AXEnhancedUserInterface` flag. Chromium browsers need it to show web page labels. The default lists Chrome, Brave, Edge, Arc, Vivaldi, and Opera. The flag can slow window moves by tools such as Rectangle or Raycast.
 - To find a bundle identifier, run `osascript -e 'id of app "Slack"'`.

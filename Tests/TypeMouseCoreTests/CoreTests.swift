@@ -103,6 +103,62 @@ final class GeometryTests: XCTestCase {
 }
 
 final class HotkeyAndConfigTests: XCTestCase {
+    func testDisablingModesKeepsTheirBindingsAndChildPreferences() throws {
+        var config = try Config.decode(Data(#"{"hotkeys":{"window":"hyper+t","search":"hyper+o"}}"#.utf8))
+        XCTAssertTrue(Config.Mode.allCases.allSatisfy(config.isModeEnabled))
+        config.setModeEnabled(.windowPicker, false)
+        config.setModeEnabled(.windowSelection, false)
+        config.setModeEnabled(.click, false)
+        config.setModeEnabled(.grid, false)
+        XCTAssertFalse(config.isModeEnabled(.windowList))
+        XCTAssertFalse(config.isModeEnabled(.missionControl))
+        XCTAssertFalse(config.isModeEnabled(.search))
+        XCTAssertFalse(config.isModeEnabled(.scroll))
+        XCTAssertTrue(config.isModeEnabled(.windowManagement))
+        XCTAssertEqual(try Config.decode(config.encoded()), config)
+
+        config.setModeEnabled(.windowSelection, true)
+        config.setModeEnabled(.click, true)
+        XCTAssertTrue(config.isModeEnabled(.windowList))
+        XCTAssertFalse(config.isModeEnabled(.windowPicker))
+        XCTAssertTrue(config.isModeEnabled(.search))
+        XCTAssertEqual(config.hotkeys.window, ["hyper+t"])
+        XCTAssertEqual(config.hotkeys.search, ["hyper+o"])
+    }
+    func testMissionControlHotkeyKeepsDefaultAndCanBeCleared() throws {
+        let defaults = try Config.decode(Data(#"{"hotkeys":{"picker":"hyper+k"}}"#.utf8))
+        XCTAssertEqual(defaults.hotkeys.missionControl, ["hyper+return"])
+        let cleared = try Config.decode(Data(#"{"hotkeys":{"missionControl":[]}}"#.utf8))
+        XCTAssertTrue(cleared.hotkeys.missionControl.isEmpty)
+        XCTAssertEqual(try Config.decode(cleared.encoded()), cleared)
+    }
+    func testScrollHotkeyKeepsDefaultAndCanBeCleared() throws {
+        let defaults = try Config.decode(Data(#"{"hotkeys":{"grid":"hyper+h"}}"#.utf8))
+        XCTAssertEqual(defaults.hotkeys.scroll, ["hyper+u"])
+        let cleared = try Config.decode(Data(#"{"hotkeys":{"scroll":[]}}"#.utf8))
+        XCTAssertTrue(cleared.hotkeys.scroll.isEmpty)
+        XCTAssertEqual(try Config.decode(cleared.encoded()), cleared)
+    }
+    func testChangingAndRemovingWindowPinsPreservesOtherApps() throws {
+        var config = try Config.decode(Data(#"{"windowPins":{"S":"com.example.slack","b":"com.example.browser"}}"#.utf8))
+        XCTAssertFalse(config.availableWindowPinLetters.contains("s"))
+        XCTAssertTrue(config.setWindowPin("L", for: "com.example.slack"))
+        XCTAssertEqual(config.windowPins, ["l": "com.example.slack", "b": "com.example.browser"])
+        XCTAssertEqual(try Config.decode(config.encoded()).pins, config.pins)
+
+        config.removeWindowPin(for: "com.example.slack")
+        XCTAssertEqual(config.pins, ["b": "com.example.browser"])
+        XCTAssertTrue(config.availableWindowPinLetters.contains("l"))
+    }
+
+    func testWindowPinCannotTakeAnotherAppsLetter() {
+        var config = Config()
+        config.windowPins = ["B": "com.example.browser", "s": "com.example.slack"]
+
+        XCTAssertFalse(config.setWindowPin("b", for: "com.example.slack"))
+        XCTAssertEqual(config.pins, ["b": "com.example.browser", "s": "com.example.slack"])
+    }
+
     func testHotkeyParsing() {
         let h = HotkeySpec("hyper+space")!
         XCTAssertEqual(h.keyCode, 49)

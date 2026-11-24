@@ -10,7 +10,9 @@ final class WindowPicker {
         let area: CGRect   // the window's largest visible rectangle, AX coordinates
     }
 
-    private(set) var isActive = false
+    private var desktopActive = false
+    var isActive: Bool { desktopActive || overview.isActive }
+    var isShowingOverview: Bool { overview.isActive }
     /// Called after the picker focuses a window.
     var onPicked: ((WindowInfo) -> Void)?
     private var entries: [Entry] = []
@@ -18,19 +20,38 @@ final class WindowPicker {
     private var typed = ""
 
     private let overlay = Overlay()
+    private let overview: MissionControlPicker
+    private var usesPickerShortcut = false
     private let capture: KeyCapture
     private var config: Config
 
     init(capture: KeyCapture, config: Config) {
         self.capture = capture
         self.config = config
+        overview = MissionControlPicker(capture: capture, config: config)
+        overview.onPicked = { [weak self] in self?.onPicked?($0) }
     }
 
-    func update(config: Config) { self.config = config }
+    func update(config: Config) {
+        self.config = config
+        overview.update(config: config)
+        if (usesPickerShortcut && !config.isModeEnabled(.windowPicker))
+            || (overview.isActive && !config.isModeEnabled(.missionControl)) { exit() }
+    }
 
-    func start() {
+    func clearDismissedOverview() { overview.clearIfDismissed() }
+
+    func start(missionControl: Bool = false) {
+        let thumbnails = MissionControlPicker.snapshot()
+        if missionControl || thumbnails != nil {
+            guard config.isModeEnabled(.missionControl) else { return }
+            usesPickerShortcut = !missionControl
+            overview.start(openOverview: missionControl, snapshot: thumbnails)
+            return
+        }
+        usesPickerShortcut = true
         capture.setActive(true)
-        isActive = true
+        desktopActive = true
         typed = ""
         let start = Date()
         entries = Self.visibleWindows()
@@ -41,15 +62,17 @@ final class WindowPicker {
     }
 
     func exit() {
-        guard isActive else { return }
-        isActive = false
+        if overview.isActive { overview.exit(); return }
+        guard desktopActive else { return }
+        desktopActive = false
         capture.setActive(false)
         overlay.hide()
         entries = []
     }
 
     func handle(_ key: KeyEvent) {
-        guard isActive else { return }
+        if overview.isActive { overview.handle(key); return }
+        guard desktopActive else { return }
         switch key.special {
         case .escape: exit(); return
         case .backspace:
