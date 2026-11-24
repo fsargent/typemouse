@@ -2,8 +2,48 @@
 
 # TypeMouse
 
-Type instead of using the mouse. TypeMouse lets you click and switch windows on macOS with only the keyboard.
-It is a personal replacement for [Homerow](https://www.homerow.app), with a separate window mode.
+TypeMouse lets you click buttons, links, and other controls in macOS apps by typing their labels.
+Use the keyboard to move the pointer, scroll, and switch or arrange windows, too.
+
+## Install
+
+Homebrew is the recommended way to install TypeMouse.
+
+```sh
+brew tap fsargent/tap
+brew trust --tap fsargent/tap
+brew install --cask typemouse
+```
+
+Open TypeMouse and grant Accessibility permission when macOS asks.
+Run `brew upgrade --cask typemouse` to update it.
+
+### Download the ZIP
+
+You can also download the universal app from [GitHub Releases](https://github.com/fsargent/typemouse/releases).
+Use Homebrew for version 0.1.0.
+
+1. Download and unzip `TypeMouse-<version>.zip`.
+2. Move `TypeMouse.app` to `/Applications` or `~/Applications`.
+3. Open TypeMouse and grant Accessibility permission when macOS asks.
+
+## Why TypeMouse
+
+I built TypeMouse to keep my hands on the keyboard when an app expects a mouse click.
+Homerow, Vimium, and Vimium C shaped the click labels.
+Witch and grid-based pointer tools inspired how TypeMouse switches windows and positions the pointer.
+
+I used Spectacle and later Raycast to arrange windows.
+TypeMouse adds shortcuts inspired by tiling window managers while keeping the flexibility of regular macOS windows.
+
+With the default Hyper shortcuts, your right hand shows click labels, starts the pointer grid, and switches windows.
+Your left hand arranges windows.
+The window layout and pointer grid use three columns of keys, one each for your index, middle, and ring fingers.
+The position of each key matches a position on the screen.
+
+My experience with custom and ergonomic keyboards shaped the layout. The defaults work on a standard keyboard, and you can change the shortcuts in Settings.
+
+## Modes
 
 **Click mode** puts a label on every clickable element. Type the label to click it.
 
@@ -13,17 +53,15 @@ It is a personal replacement for [Homerow](https://www.homerow.app), with a sepa
 
 ![Window mode: a list of windows, each with a one- or two-letter label](docs/images/window-mode.png)
 
-## Modes
-
 | Hotkey | Mode | What it does |
 |---|---|---|
 | `hyper+j` | Click | Shows a label on each clickable element. Type the label to click it. |
-| `hyper+k` | Window picker | Shows one label on each visible window. Press the label to focus that window. |
-| `hyper+return` | Mission Control picker | Opens Mission Control and labels its window previews. |
+| `hyper+k` | Mission Control picker | Opens Mission Control and labels its window previews. |
 | `hyper+l` | Window | Shows a list of windows with stable labels. Type a label to focus the window. |
 | `hyper+h` | Grid | Refines a mouse target through smaller grids. Press `Enter` to scroll there. |
 | `hyper+u` | Scroll | Labels scrollable areas in the focused window. Type a label to scroll there. |
 | Hyper + layout key | Window management | Moves and resizes the focused window. |
+| none | Window picker | Shows a label on each visible window. Open it from the TypeMouse menu or set a hotkey in Settings. |
 | none | Search | Type part of an element's text. Press `Enter` to click the highlighted match. |
 
 All default hotkeys use Hyper: Command (⌘) + Control (⌃) + Option (⌥) + Shift (⇧) together.
@@ -92,11 +130,10 @@ Labels come from app names, so they stay the same when windows move:
 
 ### Mission Control picker
 
-Press Hyper + Return to open Mission Control and label the window previews on each display's current Space.
+Press Hyper + K to open Mission Control and label the window previews on each display's current Space.
 The app name and window title appear above the label.
 Type a label to focus its window. Labels stay visible when you hover over a preview.
 Press Escape or the hotkey again to close Mission Control and its labels.
-If Mission Control is already open, Hyper + K also labels its previews.
 
 ### Window mode keys
 
@@ -237,7 +274,7 @@ TypeMouse writes the defaults on first launch. Every key is optional.
 {
   "hintCharacters": "fjdkslaghrueiwotyvmcxbn",
   "disabledModes": [],
-  "hotkeys": { "click": "hyper+j", "picker": "hyper+k", "missionControl": "hyper+return", "window": "hyper+l", "grid": "hyper+h", "scroll": "hyper+u", "search": [] },
+  "hotkeys": { "click": "hyper+j", "picker": [], "missionControl": "hyper+k", "window": "hyper+l", "grid": "hyper+h", "scroll": "hyper+u", "search": [] },
   "windowPins": { "c": "com.google.Chrome", "s": "com.tinyspeck.slackmacgap", "t": "com.mitchellh.ghostty" },
   "clickStrategy": { "com.example.app": "mouse" },
   "restoreMousePosition": true,
@@ -268,40 +305,6 @@ TypeMouse writes the defaults on first launch. Every key is optional.
 - `clickStrategy`: `auto` (default) uses AXPress, with a mouse click for web content and when AXPress fails. `press` never moves the mouse. `mouse` always sends a mouse click.
 - `enhancedUserInterfaceApps`: apps that get the `AXEnhancedUserInterface` flag. Chromium browsers need it to show web page labels. The default lists Chrome, Brave, Edge, Arc, Vivaldi, and Opera. The flag can slow window moves by tools such as Rectangle or Raycast.
 - To find a bundle identifier, run `osascript -e 'id of app "Slack"'`.
-
-## Install with Homebrew
-
-```sh
-brew tap fsargent/tap
-brew trust --tap fsargent/tap
-brew install --cask typemouse
-```
-
-Homebrew loads casks from other taps only after you trust the tap. `brew trust` records that choice.
-
-The cask removes the download quarantine. After you install it, grant Accessibility permission when macOS asks.
-`brew upgrade` installs new releases. After each upgrade, grant Accessibility permission again (see the note under Download).
-
-## Download
-
-Each release on the [Releases page](https://github.com/fsargent/typemouse/releases) has a universal `TypeMouse-<version>.zip`.
-
-1. Download and unzip it.
-2. Move `TypeMouse.app` to `/Applications` or `~/Applications`.
-3. Remove the download quarantine: `xattr -dr com.apple.quarantine /Applications/TypeMouse.app`
-4. Open the app, then grant Accessibility permission when macOS asks.
-
-Release builds have an ad-hoc signature, not an Apple Developer ID.
-macOS sees each new version as a new app.
-After an update, remove TypeMouse from the Accessibility list and grant permission again.
-
-## Publish a release
-
-1. Push a version tag: `git tag v0.2.0 && git push origin v0.2.0`
-2. The `Release` workflow runs the tests and builds a universal app.
-3. The workflow publishes the zip and its SHA-256 checksum with generated release notes.
-4. The workflow updates the cask in [fsargent/homebrew-tap](https://github.com/fsargent/homebrew-tap).
-   This step needs the `HOMEBREW_TAP_DEPLOY_KEY` secret. Without it, the step prints a warning and skips.
 
 ## Build and install from source
 
@@ -345,6 +348,10 @@ If a hotkey does nothing, another app can own it. macOS does not report a confli
 - Window mode shows windows on the current Space only, plus minimized windows and windows of hidden apps.
 - Secure Input (password fields) blocks key capture.
 - Scroll mode is not part of TypeMouse.
+
+## Contribute
+
+See [CONTRIBUTORS.md](CONTRIBUTORS.md) for development and release instructions.
 
 ## License
 

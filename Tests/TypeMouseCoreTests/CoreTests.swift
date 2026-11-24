@@ -103,6 +103,17 @@ final class GeometryTests: XCTestCase {
 }
 
 final class HotkeyAndConfigTests: XCTestCase {
+    func testDefaultHotkeys() {
+        let hotkeys = Config().hotkeys
+        XCTAssertEqual(hotkeys.click, ["hyper+j"])
+        XCTAssertEqual(hotkeys.grid, ["hyper+h"])
+        XCTAssertEqual(hotkeys.missionControl, ["hyper+k"])
+        XCTAssertEqual(hotkeys.window, ["hyper+l"])
+        XCTAssertEqual(hotkeys.scroll, ["hyper+u"])
+        XCTAssertTrue(hotkeys.picker.isEmpty)
+        XCTAssertTrue(hotkeys.search.isEmpty)
+    }
+
     func testDisablingModesKeepsTheirBindingsAndChildPreferences() throws {
         var config = try Config.decode(Data(#"{"hotkeys":{"window":"hyper+t","search":"hyper+o"}}"#.utf8))
         XCTAssertTrue(Config.Mode.allCases.allSatisfy(config.isModeEnabled))
@@ -126,11 +137,17 @@ final class HotkeyAndConfigTests: XCTestCase {
         XCTAssertEqual(config.hotkeys.search, ["hyper+o"])
     }
     func testMissionControlHotkeyKeepsDefaultAndCanBeCleared() throws {
-        let defaults = try Config.decode(Data(#"{"hotkeys":{"picker":"hyper+k"}}"#.utf8))
-        XCTAssertEqual(defaults.hotkeys.missionControl, ["hyper+return"])
+        let defaults = try Config.decode(Data(#"{"hotkeys":{"click":"hyper+j"}}"#.utf8))
+        XCTAssertEqual(defaults.hotkeys.missionControl, ["hyper+k"])
+        XCTAssertTrue(defaults.hotkeys.picker.isEmpty)
         let cleared = try Config.decode(Data(#"{"hotkeys":{"missionControl":[]}}"#.utf8))
         XCTAssertTrue(cleared.hotkeys.missionControl.isEmpty)
         XCTAssertEqual(try Config.decode(cleared.encoded()), cleared)
+    }
+    func testMissionControlFallbackPreservesAnExistingHyperKBinding() throws {
+        let existing = try Config.decode(Data(#"{"hotkeys":{"picker":"Command + Control + Option + Shift + K"}}"#.utf8))
+        XCTAssertEqual(existing.hotkeys.picker, ["Command + Control + Option + Shift + K"])
+        XCTAssertEqual(existing.hotkeys.missionControl, ["hyper+return"])
     }
     func testScrollHotkeyKeepsDefaultAndCanBeCleared() throws {
         let defaults = try Config.decode(Data(#"{"hotkeys":{"grid":"hyper+h"}}"#.utf8))
@@ -284,13 +301,6 @@ final class VisibilityTests: XCTestCase {
         // Rows 1-2, all four columns (8 cells) beats columns 0-1, all rows (6 cells).
         XCTAssertEqual(Visibility.largestRectangle(grid), .init(minRow: 1, maxRow: 2, minCol: 0, maxCol: 3))
         XCTAssertNil(Visibility.largestRectangle([[false]]))
-    }
-
-    func testDefaultPickerHotkey() {
-        XCTAssertEqual(Config().hotkeys.click, ["hyper+j"])
-        XCTAssertEqual(Config().hotkeys.picker, ["hyper+k"])
-        XCTAssertEqual(Config().hotkeys.window, ["hyper+l"])
-        XCTAssertEqual(Config().hotkeys.search, [])
     }
 }
 

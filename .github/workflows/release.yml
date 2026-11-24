@@ -1,72 +1,215 @@
 # Builds TypeMouse.app, publishes a GitHub release, and updates the Homebrew tap
 # when a version tag is pushed.
-#   git tag v0.2.0 && git push origin v0.2.0
+#   git tag -s v0.2.0 -m "TypeMouse 0.2.0" && git push origin v0.2.0
 name: Release
 
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
 
 permissions:
   contents: write
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   release:
+    if: github.event_name == 'push' || github.ref == 'refs/heads/main'
     runs-on: macos-latest
+    environment: release
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
-      - name: Run unit tests
-        run: swift test
-
-      - name: Build universal app
-        env:
-          TYPEMOUSE_SIGN_IDENTITY: "-"
-          DEST: ${{ runner.temp }}/dist
-          UNIVERSAL: "1"
-        run: VERSION="${GITHUB_REF_NAME#v}" scripts/build-app.sh
-
-      - name: Zip the app
-        run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          cd "$RUNNER_TEMP/dist"
-          ditto -c -k --keepParent TypeMouse.app "TypeMouse-$VERSION.zip"
-          shasum -a 256 "TypeMouse-$VERSION.zip" | tee "TypeMouse-$VERSION.zip.sha256"
-
-      - name: Publish the release
+      - name: Check the release version
+        id: version
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          gh release create "$GITHUB_REF_NAME" \
-            "$RUNNER_TEMP/dist/TypeMouse-$VERSION.zip" \
-            "$RUNNER_TEMP/dist/TypeMouse-$VERSION.zip.sha256" \
-            --title "TypeMouse $VERSION" --generate-notes
+          set -euo pipefail
+          if [[ "$GITHUB_EVENT_NAME" == workflow_dispatch ]]; then
+            echo "VERSION=0.0.0" >> "$GITHUB_ENV"
+            exit 0
+          fi
+          if [[ ! "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Use a version tag such as v0.2.0." >&2
+            exit 1
+          fi
+          echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+          if draft=$(gh release view "$GITHUB_REF_NAME" --json isDraft --jq .isDraft); then
+            if [[ "$draft" == true ]]; then
+              echo "draft=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "published=true" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+
+      - name: Run unit tests
+        if: steps.version.outputs.published != 'true'
+        run: swift test
+
+      - name: Import the signing and notarization credentials
+        if: steps.version.outputs.published != 'true'
+        env:
+          DEVELOPER_ID_P12: ${{ secrets.DEVELOPER_ID_P12 }}
+          DEVELOPER_ID_P12_PASSWORD: ${{ secrets.DEVELOPER_ID_P12_PASSWORD }}
+          APPLE_NOTARY_ID: ${{ secrets.APPLE_NOTARY_ID }}
+          APPLE_NOTARY_TEAM_ID: ${{ secrets.APPLE_NOTARY_TEAM_ID }}
+          APPLE_NOTARY_PASSWORD: ${{ secrets.APPLE_NOTARY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          for name in DEVELOPER_ID_P12 DEVELOPER_ID_P12_PASSWORD APPLE_NOTARY_ID APPLE_NOTARY_TEAM_ID APPLE_NOTARY_PASSWORD; do
+            if [[ -z "${!name}" ]]; then
+              echo "::error::Missing release environment secret: $name"
+              exit 1
+            fi
+          done
+
+          umask 077
+          keychain="$RUNNER_TEMP/typemouse-release.keychain-db"
+          keychain_password="$(openssl rand -hex 32)"
+          echo "::add-mask::$keychain_password"
+          certificate="$RUNNER_TEMP/typemouse-signing.p12"
+          trap 'rm -f -- "$certificate"' EXIT
+          printf '%s' "$DEVELOPER_ID_P12" | base64 -D > "$certificate"
+          curl --fail --silent --show-error --location --proto '=https' \
+            'https://www.apple.com/certificateauthority/DeveloperIDG2CA.cer' -o "$RUNNER_TEMP/DeveloperIDG2CA.cer"
+
+          security create-keychain -p "$keychain_password" "$keychain"
+          security set-keychain-settings -lut 3600 "$keychain"
+          security unlock-keychain -p "$keychain_password" "$keychain"
+          security list-keychains -d user -s "$keychain"
+          security import "$RUNNER_TEMP/DeveloperIDG2CA.cer" -k "$keychain"
+          security import "$certificate" -k "$keychain" -f pkcs12 -P "$DEVELOPER_ID_P12_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$keychain_password" "$keychain" >/dev/null
+          identity="$(security find-identity -v -p codesigning "$keychain" |
+            awk -v team="($APPLE_NOTARY_TEAM_ID)" '/Developer ID Application:/ && index($0, team) { print $2; exit }')"
+          if [[ -z "$identity" ]]; then
+            echo "::error::No valid Developer ID Application identity matches the notarization team."
+            exit 1
+          fi
+          xcrun notarytool store-credentials TypeMouse --keychain "$keychain" \
+            --apple-id "$APPLE_NOTARY_ID" --team-id "$APPLE_NOTARY_TEAM_ID" --password "$APPLE_NOTARY_PASSWORD"
+          {
+            echo "TYPEMOUSE_SIGN_IDENTITY=$identity"
+            echo "TYPEMOUSE_SIGN_KEYCHAIN=$keychain"
+            echo "NOTARY_KEYCHAIN=$keychain"
+          } >> "$GITHUB_ENV"
+
+      - name: Build universal app
+        if: steps.version.outputs.published != 'true'
+        env:
+          TYPEMOUSE_RELEASE_SIGNING: "1"
+          DEST: ${{ runner.temp }}/dist
+          UNIVERSAL: "1"
+        run: scripts/build-app.sh
+
+      - name: Notarize the app and verify the final ZIP
+        if: steps.version.outputs.published != 'true'
+        run: scripts/package-release.sh "$RUNNER_TEMP/dist/TypeMouse.app" "$RUNNER_TEMP/dist/TypeMouse-$VERSION.zip" TypeMouse
+
+      - name: Remove the release keychain
+        if: always()
+        run: |
+          keychain="$RUNNER_TEMP/typemouse-release.keychain-db"
+          if [[ -f "$keychain" ]]; then security delete-keychain "$keychain"; fi
+
+      - name: Publish the release
+        if: github.event_name == 'push' && steps.version.outputs.published != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HAS_DRAFT: ${{ steps.version.outputs.draft }}
+        run: |
+          set -euo pipefail
+          zip="$RUNNER_TEMP/dist/TypeMouse-$VERSION.zip"
+          if [[ "$HAS_DRAFT" == true ]]; then
+            gh release upload "$GITHUB_REF_NAME" "$zip" "$zip.sha256" --clobber
+            gh release edit "$GITHUB_REF_NAME" --verify-tag --draft=false
+          else
+            gh release create "$GITHUB_REF_NAME" "$zip" "$zip.sha256" \
+              --verify-tag --title "TypeMouse $VERSION" --generate-notes
+          fi
 
       - name: Update the Homebrew tap
+        if: github.event_name == 'push'
         env:
+          GH_TOKEN: ${{ github.token }}
           TAP_DEPLOY_KEY: ${{ secrets.HOMEBREW_TAP_DEPLOY_KEY }}
+          PUBLISHED_BEFORE_RUN: ${{ steps.version.outputs.published }}
         run: |
           set -euo pipefail
           if [ -z "$TAP_DEPLOY_KEY" ]; then
             echo "::warning::HOMEBREW_TAP_DEPLOY_KEY is not set. The Homebrew tap was not updated."
             exit 0
           fi
-          VERSION="${GITHUB_REF_NAME#v}"
-          SHA=$(awk '{print $1}' "$RUNNER_TEMP/dist/TypeMouse-$VERSION.zip.sha256")
+          if [[ "$(gh release view --json tagName --jq .tagName)" != "$GITHUB_REF_NAME" ]]; then
+            echo "The tap tracks the latest published release."
+            exit 0
+          fi
+          SHA="$(gh release download "$GITHUB_REF_NAME" --pattern "TypeMouse-$VERSION.zip.sha256" --output - | awk '{print $1}')"
+          if [[ ! "$SHA" =~ ^[a-f0-9]{64}$ ]]; then
+            echo "::error::The published release has an invalid SHA-256 checksum."
+            exit 1
+          fi
+          if [[ "$PUBLISHED_BEFORE_RUN" == true ]]; then
+            zip="$RUNNER_TEMP/TypeMouse-$VERSION.zip"
+            gh release download "$GITHUB_REF_NAME" --pattern "TypeMouse-$VERSION.zip" --output "$zip"
+            printf '%s  %s\n' "$SHA" "$zip" | shasum -a 256 -c
+            ditto -x -k "$zip" "$RUNNER_TEMP/published"
+            app="$RUNNER_TEMP/published/TypeMouse.app"
+            codesign --verify --strict "$app"
+            xcrun stapler validate "$app"
+            spctl --assess --type execute --verbose=2 "$app"
+          fi
           KEY="$RUNNER_TEMP/tap_key"
+          trap 'rm -f -- "$KEY"' EXIT
           (umask 077 && printf '%s\n' "$TAP_DEPLOY_KEY" > "$KEY")
           export GIT_SSH_COMMAND="ssh -i $KEY -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
           git clone --depth 1 git@github.com:fsargent/homebrew-tap.git "$RUNNER_TEMP/tap"
           cd "$RUNNER_TEMP/tap"
           sed -i '' "s/^  version \".*\"$/  version \"$VERSION\"/; s/^  sha256 \".*\"$/  sha256 \"$SHA\"/" Casks/typemouse.rb
+          # Remove the v0.1.0 install workaround once the tap points at a notarized release.
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          cask = Path("Casks/typemouse.rb")
+          text = cask.read_text()
+          text = re.sub(
+              r"\n  # Release builds have an ad-hoc signature,[^\n]*\n.*?\n  end\n\n",
+              "\n",
+              text,
+              count=1,
+              flags=re.S,
+          )
+          text = text.replace(
+              "\n    Release builds have an ad-hoc signature. After each upgrade, macOS sees a new app.\n"
+              "    Remove TypeMouse from the Accessibility list, then turn it on again.\n",
+              "",
+          )
+          cask.write_text(text)
+          readme = Path("README.md")
+          readme.write_text(readme.read_text().replace(
+              "Release builds have an ad-hoc signature, not an Apple Developer ID.\n"
+              "After each upgrade, macOS sees a new app. Remove TypeMouse from the Accessibility list, then turn it on again.\n\n",
+              "",
+          ))
+          PY
           if git diff --quiet; then
             echo "The cask is already on $VERSION."
+            exit 0
+          fi
+          if [[ "$(gh release view --json tagName --jq .tagName)" != "$GITHUB_REF_NAME" ]]; then
+            echo "A newer release is available. Its run will update the tap."
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -am "feat: update typemouse to $VERSION"
           git push
-          rm -f "$KEY"
 
