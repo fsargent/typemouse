@@ -11,15 +11,17 @@ struct KeyEvent {
     let command: Bool
     let option: Bool
     let control: Bool
+    let isRepeat: Bool
 
     /// Hyper still held from the activation hotkey counts as no modifiers.
     var hyperHeld: Bool { shift && command && option && control }
 
     /// Main thread only. Reads the character with no modifiers, so Shift+; is still ";".
     /// Shift means right-click in click mode, so it must not change the character.
-    init(keyCode: Int64, flags: CGEventFlags) {
+    init(keyCode: Int64, flags: CGEventFlags, isRepeat: Bool = false) {
         dispatchPrecondition(condition: .onQueue(.main))
         self.keyCode = keyCode
+        self.isRepeat = isRepeat
         let c = KeyTranslator.unmodifiedCharacter(UInt16(truncatingIfNeeded: keyCode)).lowercased()
         char = c.count == 1 && c.unicodeScalars.first!.value >= 32 ? c : ""
         shift = flags.contains(.maskShift)
@@ -118,10 +120,14 @@ final class HotkeyManager {
 /// on AX calls, and macOS disables taps whose callback is slow.
 final class KeyCapture {
     var onKey: ((KeyEvent) -> Void)?
+    var onKeyUp: ((Int64) -> Void)?
+    var onFlagsChanged: ((CGEventFlags) -> Void)?
+    var onInterrupted: (() -> Void)?
     private var tap: CFMachPort?
     private var thread: Thread?
     private let lock = NSLock()
     private var _active = false
+    private var passthroughKeyUps: Set<Int64> = []
 
     var active: Bool {
         lock.lock(); defer { lock.unlock() }
@@ -134,6 +140,7 @@ final class KeyCapture {
     func start() -> Bool {
         if tap != nil { return true }
         let mask = (1 << CGEventType.keyDown.rawValue) | (1 << CGEventType.keyUp.rawValue)
+            | (1 << CGEventType.flagsChanged.rawValue)
         guard let tap = CGEvent.tapCreate(tap: .cgSessionEventTap, place: .headInsertEventTap, options: .defaultTap,
                                           eventsOfInterest: CGEventMask(mask), callback: keyTapCallback,
                                           userInfo: Unmanaged.passUnretained(self).toOpaque()) else { return false }
@@ -154,12 +161,21 @@ final class KeyCapture {
     func setActive(_ on: Bool) {
         lock.lock()
         _active = on
+        if !on { passthroughKeyUps = [] }
         lock.unlock()
         if let tap { CGEvent.tapEnable(tap: tap, enable: on) }
     }
 
+    /// Carbon must see the release of a hotkey that enabled capture.
+    func passNextKeyUp(_ keyCode: Int64) {
+        lock.lock()
+        passthroughKeyUps.insert(keyCode)
+        lock.unlock()
+    }
+
     fileprivate func handle(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+            DispatchQueue.main.async { [weak self] in self?.onInterrupted?() }
             if active, let tap { CGEvent.tapEnable(tap: tap, enable: true) }
             return Unmanaged.passUnretained(event)
         }
@@ -168,9 +184,21 @@ final class KeyCapture {
             // Only plain values cross threads. Text input source APIs must run on the main thread.
             let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
             let flags = event.flags
+            let isRepeat = event.getIntegerValueField(.keyboardEventAutorepeat) != 0
             DispatchQueue.main.async { [weak self] in
-                self?.onKey?(KeyEvent(keyCode: keyCode, flags: flags))
+                self?.onKey?(KeyEvent(keyCode: keyCode, flags: flags, isRepeat: isRepeat))
             }
+        } else if type == .keyUp {
+            let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
+            DispatchQueue.main.async { [weak self] in self?.onKeyUp?(keyCode) }
+            lock.lock()
+            let pass = passthroughKeyUps.remove(keyCode) != nil
+            lock.unlock()
+            if pass { return Unmanaged.passUnretained(event) }
+        } else if type == .flagsChanged {
+            let flags = event.flags
+            DispatchQueue.main.async { [weak self] in self?.onFlagsChanged?(flags) }
+            return Unmanaged.passUnretained(event)
         }
         return nil
     }

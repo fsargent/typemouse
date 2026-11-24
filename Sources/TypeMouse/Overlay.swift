@@ -21,7 +21,7 @@ final class Overlay {
 
     static let level = NSWindow.Level(rawValue: NSWindow.Level.popUpMenu.rawValue + 1)
 
-    func render(_ labels: [LabelSpec], banner: String? = nil) {
+    func render(_ labels: [LabelSpec], banner: String? = nil, bannerPoint: CGPoint? = nil) {
         syncWindows()
         let primaryHeight = AX.primaryHeight
         CATransaction.begin()
@@ -42,7 +42,12 @@ final class Overlay {
             }
         }
 
-        if let banner, let (screen, window) = windows.first(where: { $0.screen == NSScreen.main }) ?? windows.first,
+        let bannerScreen = bannerPoint.map { point in
+            Geometry.cocoaRect(fromAX: CGRect(origin: point, size: .zero), primaryHeight: primaryHeight).origin
+        }
+        if let banner, let (screen, window) = windows.first(where: { entry in
+            bannerScreen.map { entry.screen.frame.contains($0) } ?? (entry.screen == NSScreen.main)
+        }) ?? windows.first,
            let root = window.contentView?.layer {
             root.addSublayer(bannerLayer(banner, bounds: root.bounds, scale: screen.backingScaleFactor))
         }

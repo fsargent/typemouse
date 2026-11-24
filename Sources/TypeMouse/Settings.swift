@@ -43,6 +43,7 @@ final class SettingsModel: ObservableObject {
         case search = "Search mode"
         case window = "Window list"
         case picker = "Window picker"
+        case grid = "Grid mode"
 
         var id: String { rawValue }
 
@@ -52,6 +53,7 @@ final class SettingsModel: ObservableObject {
             case .search: return \.search
             case .window: return \.window
             case .picker: return \.picker
+            case .grid: return \.grid
             }
         }
     }
@@ -212,6 +214,21 @@ struct SettingsView: View {
                     .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
 
+            Section("Scrolling") {
+                Picker("Scroll keys", selection: Binding(
+                    get: { model.config.scrollKeys },
+                    set: { model.config.scrollKeys = $0; model.commit() })) {
+                    ForEach(ScrollKeys.allCases, id: \.self) { keys in
+                        Text(keys.displayName).tag(keys)
+                    }
+                }
+                numberRow("Scroll speed", unit: "pt/s", range: 50...5000, step: 50, value: Binding(
+                    get: { model.config.scrollSpeed },
+                    set: { model.config.scrollSpeed = $0; model.commit() }))
+                Text("Press Enter in grid mode to scroll at the target. Hold a direction key to scroll. Arrow keys always work. Hold Shift for three times the speed. Press Esc to exit.")
+                    .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
+
             Section("Behavior") {
                 Toggle("Start click mode in chain mode", isOn: Binding(
                     get: { model.config.chainModeByDefault },
@@ -242,8 +259,7 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 560)
-        .fixedSize(horizontal: false, vertical: true)
+        .frame(width: 600, height: min(900, (NSScreen.main?.visibleFrame.height ?? 1000) - 100))
         .onAppear { hintCharacters = model.config.hintCharacters }
         .onChange(of: model.config.hintCharacters) { _, new in hintCharacters = new }
     }

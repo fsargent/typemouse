@@ -12,8 +12,9 @@ public struct Config: Codable, Equatable {
         public var search: [String] = []
         public var window = ["hyper+l"]
         public var picker = ["hyper+k"]
+        public var grid = ["hyper+h"]
 
-        enum CodingKeys: String, CodingKey { case click, search, window, picker }
+        enum CodingKeys: String, CodingKey { case click, search, window, picker, grid }
 
         public init() {}
 
@@ -24,6 +25,7 @@ public struct Config: Codable, Equatable {
             search = try Self.decode(c, .search) ?? d.search
             window = try Self.decode(c, .window) ?? d.window
             picker = try Self.decode(c, .picker) ?? d.picker
+            grid = try Self.decode(c, .grid) ?? d.grid
         }
 
         public func encode(to encoder: Encoder) throws {
@@ -32,6 +34,7 @@ public struct Config: Codable, Equatable {
             try Self.encode(search, &c, .search)
             try Self.encode(window, &c, .window)
             try Self.encode(picker, &c, .picker)
+            try Self.encode(grid, &c, .grid)
         }
 
         private static func decode(_ c: KeyedDecodingContainer<CodingKeys>, _ key: CodingKeys) throws -> [String]? {
@@ -83,6 +86,9 @@ public struct Config: Codable, Equatable {
     /// so the app can react (open a menu, load a page).
     public var chainDelayMs = 250
     public var labelFontSize: Double = 12
+    public var scrollKeys: ScrollKeys = .vim
+    /// Scroll distance in points per second. Shift multiplies this by three.
+    public var scrollSpeed = 600
 
     /// Chromium browsers build the web page tree only when AXEnhancedUserInterface is on.
     /// AXManualAccessibility (enough for Electron) does not work for them.
@@ -112,6 +118,8 @@ public struct Config: Codable, Equatable {
         chainModeByDefault = try c.decodeIfPresent(Bool.self, forKey: .chainModeByDefault) ?? d.chainModeByDefault
         chainDelayMs = max(0, try c.decodeIfPresent(Int.self, forKey: .chainDelayMs) ?? d.chainDelayMs)
         labelFontSize = try c.decodeIfPresent(Double.self, forKey: .labelFontSize) ?? d.labelFontSize
+        scrollKeys = try c.decodeIfPresent(ScrollKeys.self, forKey: .scrollKeys) ?? d.scrollKeys
+        scrollSpeed = min(5000, max(50, try c.decodeIfPresent(Int.self, forKey: .scrollSpeed) ?? d.scrollSpeed))
         enhancedUserInterfaceApps = try c.decodeIfPresent([String].self, forKey: .enhancedUserInterfaceApps) ?? d.enhancedUserInterfaceApps
     }
 

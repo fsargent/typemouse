@@ -10,6 +10,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private lazy var hints = HintMode(capture: capture, config: config)
     private lazy var windows = WindowMode(capture: capture, config: config)
     private lazy var picker = WindowPicker(capture: capture, config: config)
+    private lazy var grid = GridMode(capture: capture, config: config)
     private var statusItem: NSStatusItem?
     private var configWatcher: DispatchSourceFileSystemObject?
     private var permissionTimer: Timer?
@@ -26,6 +27,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Puts Caps Lock back.
     func applicationWillTerminate(_ note: Notification) {
+        grid.exit(movePointer: false)
         hyperKey.setEnabled(false)
     }
 
@@ -35,6 +37,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         setUpStatusItem()
         registerHotkeys()
         capture.onKey = { [weak self] in self?.route($0) }
+        capture.onKeyUp = { [weak self] in self?.grid.keyUp($0) }
+        capture.onFlagsChanged = { [weak self] in self?.grid.flagsChanged($0) }
+        capture.onInterrupted = { [weak self] in self?.grid.releaseKeys() }
         picker.onPicked = { [weak self] info in
             guard let self, self.config.clickAfterPicker else { return }
             self.startClickModeWhenFocused(info)
@@ -93,14 +98,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             ("search", config.hotkeys.search, { [weak self] in self?.toggleHints(search: true) }),
             ("window", config.hotkeys.window, { [weak self] in self?.toggleWindows() }),
             ("picker", config.hotkeys.picker, { [weak self] in self?.togglePicker() }),
+            ("grid", config.hotkeys.grid, { [weak self] in self?.toggleGrid() }),
         ]
         for (name, strings, action) in pairs {
             for string in strings {
                 guard let spec = HotkeySpec(string) else { Log.info("bad hotkey \"\(string)\""); continue }
-                _ = hotkeys.register(spec) {
+                _ = hotkeys.register(spec) { [weak self] in
                     // Logged, so a press that never arrives is visible: it leaves no line.
                     Log.info("hotkey \(name) (\(string)) in \(NSWorkspace.shared.frontmostApplication?.localizedName ?? "?")")
                     action()
+                    if self?.capture.active == true { self?.capture.passNextKeyUp(Int64(spec.keyCode)) }
                 }
             }
         }
@@ -108,6 +115,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func toggleHints(search: Bool) {
         guard capture.active || startCapture(prompt: true) else { return }
+        grid.exit()
         windows.exit()
         picker.exit()
         if hints.isActive { hints.exit("hotkey pressed again") } else { hints.start(search: search) }
@@ -115,6 +123,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func toggleWindows() {
         guard capture.active || startCapture(prompt: true) else { return }
+        grid.exit()
         hints.exit()
         picker.exit()
         if windows.isActive { windows.hotkeyAgain() } else { windows.start() }
@@ -128,7 +137,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let focused = info.id == nil
             || AXUIElementCreateApplication(pid).element(kAXFocusedWindowAttribute)?.windowID == info.id
         if (front && focused) || Date() >= deadline {
-            guard !hints.isActive, !windows.isActive, !picker.isActive else { return }
+            guard !hints.isActive, !windows.isActive, !picker.isActive, !grid.isActive else { return }
             hints.start(search: false)
             return
         }
@@ -139,21 +148,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func togglePicker() {
         guard capture.active || startCapture(prompt: true) else { return }
+        grid.exit()
         hints.exit()
         windows.exit()
         if picker.isActive { picker.exit() } else { picker.start() }
     }
 
+    private func toggleGrid() {
+        guard capture.active || startCapture(prompt: true) else { return }
+        hints.exit()
+        windows.exit()
+        picker.exit()
+        if grid.isActive { grid.exit() } else { grid.start() }
+    }
+
     /// While a mode is active the tap swallows everything, including our own hotkeys,
     /// so we match them here too.
     private func route(_ key: KeyEvent) {
-        if matches(key, config.hotkeys.click) { toggleHints(search: false); return }
-        if matches(key, config.hotkeys.search) { toggleHints(search: true); return }
-        if matches(key, config.hotkeys.window) { toggleWindows(); return }
-        if matches(key, config.hotkeys.picker) { togglePicker(); return }
+        if !key.isRepeat {
+            if matches(key, config.hotkeys.click) { toggleHints(search: false); return }
+            if matches(key, config.hotkeys.search) { toggleHints(search: true); return }
+            if matches(key, config.hotkeys.window) { toggleWindows(); return }
+            if matches(key, config.hotkeys.picker) { togglePicker(); return }
+            if matches(key, config.hotkeys.grid) { toggleGrid(); return }
+        }
         if hints.isActive { hints.handle(key) }
         else if windows.isActive { windows.handle(key) }
         else if picker.isActive { picker.handle(key) }
+        else if grid.isActive { grid.handle(key) }
         else { capture.setActive(false) }
     }
 
@@ -177,7 +199,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let menu = NSMenu()
         for (title, action, keyPath) in [("Click mode", #selector(menuClick), \Config.Hotkeys.click),
                                          ("Window list", #selector(menuWindows), \Config.Hotkeys.window),
-                                         ("Window picker", #selector(menuPicker), \Config.Hotkeys.picker)] {
+                                         ("Window picker", #selector(menuPicker), \Config.Hotkeys.picker),
+                                         ("Grid mode", #selector(menuGrid), \Config.Hotkeys.grid)] {
             let mi = menu.addItem(withTitle: title, action: action, keyEquivalent: "")
             mi.target = self
             modeMenuItems.append((mi, title, keyPath))
@@ -216,6 +239,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { self.togglePicker() }
     }
 
+    @objc private func menuGrid() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { self.toggleGrid() }
+    }
+
     @objc private func toggleLoginItem(_ sender: NSMenuItem) {
         LoginItem.set(!LoginItem.isEnabled)
     }
@@ -243,6 +270,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self.hints.update(config: next)
             self.windows.update(config: next)
             self.picker.update(config: next)
+            self.grid.update(config: next)
             if self.capture.isStarted { self.hyperKey.setEnabled(next.capsLockToHyper) }
             self.settings.update(config: next)
             self.registerHotkeys()
