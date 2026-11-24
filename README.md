@@ -2,7 +2,8 @@
 
 # TypeMouse
 
-TypeMouse brings the keyboard workflow of a tiling window manager to macOS while keeping the flexibility of regular windows.
+TypeMouse lets you click buttons, links, and other controls in macOS apps by typing their labels.
+Use the keyboard to move the pointer, scroll, and switch or arrange windows, too.
 
 ## Install
 
@@ -28,12 +29,15 @@ Use Homebrew for version 0.1.0.
 
 ## Why TypeMouse
 
-I wanted to keep my hands on the keyboard through a whole task.
-I used Spectacle and later Raycast to arrange windows, and other tools to switch windows, click, or move the pointer.
-TypeMouse brings those jobs together, with ideas from Witch, Homerow, Vimium, Vimium C, and grid-based pointer tools.
+I built TypeMouse to keep my hands on the keyboard when an app expects a mouse click.
+Homerow, Vimium, and Vimium C shaped the click labels.
+Witch and grid-based pointer tools inspired how TypeMouse switches windows and positions the pointer.
 
-With the default Hyper shortcuts, your left hand arranges windows.
-Use your right hand to switch windows, show click labels, or start the pointer grid.
+I used Spectacle and later Raycast to arrange windows.
+TypeMouse adds shortcuts inspired by tiling window managers while keeping the flexibility of regular macOS windows.
+
+With the default Hyper shortcuts, your right hand shows click labels, starts the pointer grid, and switches windows.
+Your left hand arranges windows.
 The window layout and pointer grid use three columns of keys, one each for your index, middle, and ring fingers.
 The position of each key matches a position on the screen.
 
@@ -197,9 +201,9 @@ Set the shortcut, letter keys, and speed under **Scroll mode** in **Settings →
 
 | Layout | Up | Left | Down | Right |
 |---|---|---|---|---|
-| WASD (default) | `W` | `A` | `S` | `D` |
-| Vim | `K` | `H` | `J` | `L` |
+| Vim (default) | `K` | `H` | `J` | `L` |
 | ESDF | `E` | `S` | `D` | `F` |
+| WASD | `W` | `A` | `S` | `D` |
 | IJKL | `I` | `J` | `K` | `L` |
 
 Arrow keys always scroll, with every layout.
@@ -281,7 +285,7 @@ TypeMouse writes the defaults on first launch. Every key is optional.
   "prioritizeLabels": true,
   "labelFontSize": 12,
   "gridHand": "right",
-  "scrollKeys": "wasd",
+  "scrollKeys": "vim",
   "scrollSpeed": 600,
   "enhancedUserInterfaceApps": ["com.google.Chrome", "com.brave.Browser", "…"]
 }
@@ -296,7 +300,7 @@ TypeMouse writes the defaults on first launch. Every key is optional.
   Scroll mode requires Grid mode.
 - `hotkeys.windowManagement` overrides individual window shortcuts. For example, `{"center":"ctrl+opt+d","nextDisplay":""}` changes Center and clears Move to next display.
 - `gridHand`: `left` or `right` (default). Sets the keys for one display and for refinements.
-- `scrollKeys`: `wasd` (default), `vim`, `esdf`, or `ijkl`. Arrow keys always work.
+- `scrollKeys`: `vim` (default), `esdf`, `wasd`, or `ijkl`. Arrow keys always work.
 - `scrollSpeed`: 50–5000 points per second, with a default of 600.
 - `clickStrategy`: `auto` (default) uses AXPress, with a mouse click for web content and when AXPress fails. `press` never moves the mouse. `mouse` always sends a mouse click.
 - `enhancedUserInterfaceApps`: apps that get the `AXEnhancedUserInterface` flag. Chromium browsers need it to show web page labels. The default lists Chrome, Brave, Edge, Arc, Vivaldi, and Opera. The flag can slow window moves by tools such as Rectangle or Raycast.

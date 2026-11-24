@@ -121,7 +121,7 @@ public struct Config: Codable, Equatable {
     public var chainDelayMs = 250
     public var labelFontSize: Double = 12
     public var gridHand: GridNavigation.Hand = .right
-    public var scrollKeys: ScrollKeys = .wasd
+    public var scrollKeys: ScrollKeys = .vim
     /// Scroll distance in points per second. Shift multiplies this by three.
     public var scrollSpeed = 600
 
