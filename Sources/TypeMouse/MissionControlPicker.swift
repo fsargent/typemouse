@@ -37,6 +37,12 @@ final class MissionControlPicker {
 
     func update(config: Config) { self.config = config }
 
+    /// A Space switch can close Mission Control between timer ticks.
+    func clearIfDismissed() {
+        guard isActive, rendered, Self.snapshot() == nil else { return }
+        exit(closeOverview: false)
+    }
+
     func start(openOverview: Bool, snapshot: [Thumbnail]?) {
         opensOverview = openOverview
         launchedAt = ProcessInfo.processInfo.systemUptime

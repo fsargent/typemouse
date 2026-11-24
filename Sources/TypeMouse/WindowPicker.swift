@@ -39,6 +39,8 @@ final class WindowPicker {
             || (overview.isActive && !config.isModeEnabled(.missionControl)) { exit() }
     }
 
+    func clearDismissedOverview() { overview.clearIfDismissed() }
+
     func start(missionControl: Bool = false) {
         let thumbnails = MissionControlPicker.snapshot()
         if missionControl || thumbnails != nil {

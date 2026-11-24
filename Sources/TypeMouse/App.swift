@@ -183,6 +183,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         grid.exit()
         hints.exit()
         windows.exit()
+        picker.clearDismissedOverview()
         if picker.isActive {
             let switchToOverview = missionControl && !picker.isShowingOverview
             picker.exit()
