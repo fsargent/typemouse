@@ -86,6 +86,7 @@ public struct Config: Codable, Equatable {
     /// so the app can react (open a menu, load a page).
     public var chainDelayMs = 250
     public var labelFontSize: Double = 12
+    public var gridHand: GridNavigation.Hand = .right
     public var scrollKeys: ScrollKeys = .vim
     /// Scroll distance in points per second. Shift multiplies this by three.
     public var scrollSpeed = 600
@@ -118,6 +119,7 @@ public struct Config: Codable, Equatable {
         chainModeByDefault = try c.decodeIfPresent(Bool.self, forKey: .chainModeByDefault) ?? d.chainModeByDefault
         chainDelayMs = max(0, try c.decodeIfPresent(Int.self, forKey: .chainDelayMs) ?? d.chainDelayMs)
         labelFontSize = try c.decodeIfPresent(Double.self, forKey: .labelFontSize) ?? d.labelFontSize
+        gridHand = try c.decodeIfPresent(GridNavigation.Hand.self, forKey: .gridHand) ?? d.gridHand
         scrollKeys = try c.decodeIfPresent(ScrollKeys.self, forKey: .scrollKeys) ?? d.scrollKeys
         scrollSpeed = min(5000, max(50, try c.decodeIfPresent(Int.self, forKey: .scrollSpeed) ?? d.scrollSpeed))
         enhancedUserInterfaceApps = try c.decodeIfPresent([String].self, forKey: .enhancedUserInterfaceApps) ?? d.enhancedUserInterfaceApps
@@ -131,6 +133,25 @@ public struct Config: Codable, Equatable {
             if let ch = k.lowercased().first, k.count == 1 { out[ch] = v }
         }
         return out
+    }
+
+    public var availableWindowPinLetters: [Character] {
+        let assigned = pins
+        return Array("abcdefghijklmnopqrstuvwxyz".filter { assigned[$0] == nil })
+    }
+
+    @discardableResult
+    public mutating func setWindowPin(_ letter: Character, for bundleID: String) -> Bool {
+        let key = letter.lowercased()
+        guard key.count == 1, "abcdefghijklmnopqrstuvwxyz".contains(key), !bundleID.isEmpty else { return false }
+        guard !windowPins.contains(where: { $0.key.lowercased() == key && $0.value != bundleID }) else { return false }
+        removeWindowPin(for: bundleID)
+        windowPins[key] = bundleID
+        return true
+    }
+
+    public mutating func removeWindowPin(for bundleID: String) {
+        windowPins = windowPins.filter { $0.value != bundleID }
     }
 
     public static func decode(_ data: Data) throws -> Config {

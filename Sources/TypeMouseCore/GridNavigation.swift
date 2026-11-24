@@ -2,8 +2,12 @@ import CoreGraphics
 
 /// Grid coordinates use Quartz's top-left origin, including displays above the primary display.
 public struct GridNavigation {
-    public static let rightKeys = Array("uiojklm,.")
-    public static let leftKeys = Array("wersdfxcv")
+    public enum Hand: String, Codable, CaseIterable {
+        case left, right
+
+        var keys: [Character] { Array(self == .left ? "wersdfxcv" : "uiojklm,.") }
+        var other: Hand { self == .left ? .right : .left }
+    }
 
     public struct Region: Equatable {
         public let frame: CGRect
@@ -13,10 +17,12 @@ public struct GridNavigation {
     }
 
     private let screens: [CGRect]
-    private var history: [Region] = []
+    private var history: [CGRect] = []
     private var page = 0
+    public var preferredHand: Hand
 
-    public init(screens: [CGRect], pointer: CGPoint) {
+    public init(screens: [CGRect], pointer: CGPoint, preferredHand: Hand = .right) {
+        self.preferredHand = preferredHand
         self.screens = screens.sorted { a, b in
             a.minX == b.minX ? a.minY < b.minY : a.minX < b.minX
         }
@@ -29,15 +35,16 @@ public struct GridNavigation {
     public var hasMoreScreens: Bool { screens.count > 2 }
     /// The center of the selected cell. No cell is selected when the grid opens.
     public var point: CGPoint? {
-        guard let frame = history.last?.frame else { return nil }
+        guard let frame = history.last else { return nil }
         return CGPoint(x: frame.midX, y: frame.midY)
     }
 
     public var regions: [Region] {
-        if let selected = history.last { return [selected] }
+        if let selected = history.last { return [Region(frame: selected, keys: preferredHand.keys)] }
         let start = page * 2
         return screens.dropFirst(start).prefix(2).enumerated().map { index, frame in
-            Region(frame: frame, keys: index == 0 && start + 1 < screens.count ? Self.leftKeys : Self.rightKeys)
+            let hand: Hand = start + 1 >= screens.count ? preferredHand : (index == 0 ? .left : .right)
+            return Region(frame: frame, keys: hand.keys)
         }
     }
 
@@ -46,9 +53,9 @@ public struct GridNavigation {
         for region in regions {
             // After choosing a display, either hand can refine the target.
             let index = region.keys.firstIndex(of: key)
-                ?? (history.isEmpty ? nil : Self.leftKeys.firstIndex(of: key) ?? Self.rightKeys.firstIndex(of: key))
+                ?? (history.isEmpty ? nil : preferredHand.other.keys.firstIndex(of: key))
             guard let index, min(region.frame.width, region.frame.height) > 1 else { continue }
-            history.append(Region(frame: Self.cell(index, in: region.frame), keys: region.keys))
+            history.append(Self.cell(index, in: region.frame))
             return true
         }
         return false

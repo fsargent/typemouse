@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 import TypeMouseCore
+import UniformTypeIdentifiers
 
 /// The settings window. It edits the same config file that TypeMouse watches,
 /// so a change in the window and a change in the file have the same effect.
@@ -267,18 +268,23 @@ struct SettingsView: View {
             case .window:
                 Section("Choose a window") {
                     note("Press Tab or the hotkey again to highlight the next window. Press Slash (/) to search by app or window title.")
-                    note("Use the config file to pin labels to apps you switch to often.")
                 }
+                PinnedAppsSettings(model: model)
             case .picker:
                 Section("After selection") {
                     Toggle("Start click mode after focusing the window", isOn: setting(\.clickAfterPicker))
                 }
             case .grid:
                 Section("Choose a point") {
-                    note("On one display, use the right-hand keys. With two displays, the keys match the left and right displays.")
+                    Picker("Preferred hand", selection: setting(\.gridHand)) {
+                        ForEach(GridNavigation.Hand.allCases, id: \.self) { hand in
+                            Text(hand.rawValue.capitalized).tag(hand)
+                        }
+                    }
+                    note("Use your preferred hand on one display and to refine a selection. With two displays, the first grid keys match each display.")
                     HStack(alignment: .top, spacing: 32) {
-                        gridKeys("Left display", keys: "W E R\nS D F\nX C V")
-                        gridKeys("Right or single display", keys: "U I O\nJ K L\nM , .")
+                        gridKeys("Left hand", keys: "W E R\nS D F\nX C V")
+                        gridKeys("Right hand", keys: "U I O\nJ K L\nM , .")
                     }
                     note("Press Backspace to undo a selection. Press Escape to move to the selected point and exit. Press Space to click.")
                     note("Without a selection, Space clicks at the current pointer position and Escape leaves the pointer in place.")
@@ -324,7 +330,7 @@ struct SettingsView: View {
             }
             Section("Config file") {
                 Button("Open config file") { NSWorkspace.shared.open(ConfigStore.url) }
-                note("Use the file to edit window pins, per-app click strategies, and other advanced settings.")
+                note("Use the file to edit per-app click strategies and other advanced settings.")
             }
         }
     }
@@ -445,5 +451,96 @@ struct SettingsView: View {
         guard hintCharactersValid else { NSSound.beep(); return }
         model.config.hintCharacters = hintCharacters.lowercased()
         model.commit()
+    }
+}
+
+private struct PinnedAppsSettings: View {
+    @ObservedObject var model: SettingsModel
+    @State private var pinMessage = ""
+    @State private var showPinMessage = false
+
+    var body: some View {
+        Section("Pinned apps") {
+            Text("Give an app a fixed letter in the window list and window picker. The window list can also launch pinned apps.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            ForEach(model.config.pins.sorted(by: { $0.key < $1.key }), id: \.key) { letter, bundleID in
+                let name = appName(bundleID)
+                LabeledContent(name) {
+                    Picker("Pinned letter for \(name)", selection: Binding(
+                        get: { letter },
+                        set: { if model.config.setWindowPin($0, for: bundleID) { model.commit() } })) {
+                        ForEach((model.config.availableWindowPinLetters + [letter]).sorted(), id: \.self) { choice in
+                            Text(choice.uppercased()).tag(choice)
+                        }
+                    }
+                    .labelsHidden()
+                    Button {
+                        model.config.removeWindowPin(for: bundleID)
+                        model.commit()
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                    }
+                    .buttonStyle(.borderless)
+                    .accessibilityLabel("Remove pin for \(name)")
+                    .help("Remove pin for \(name)")
+                }
+            }
+
+            HStack {
+                Button("Pin an app…", action: chooseApp)
+                    .disabled(model.config.availableWindowPinLetters.isEmpty)
+                Button("Open config file") { NSWorkspace.shared.open(ConfigStore.url) }
+            }
+            if model.config.availableWindowPinLetters.isEmpty {
+                Text("All letters are in use. Remove a pin to free a letter.").font(.callout).foregroundStyle(.secondary)
+            }
+        }
+        .alert("Pin an app", isPresented: $showPinMessage) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(pinMessage)
+        }
+    }
+
+    private func appName(_ bundleID: String) -> String {
+        guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) else { return bundleID }
+        return FileManager.default.displayName(atPath: url.path)
+    }
+
+    private func chooseApp() {
+        guard let window = NSApp.keyWindow else { return }
+        model.stopRecording()
+        let panel = NSOpenPanel()
+        panel.title = "Pin an app"
+        panel.prompt = "Pin"
+        panel.directoryURL = URL(fileURLWithPath: "/Applications", isDirectory: true)
+        panel.allowedContentTypes = [.applicationBundle]
+        panel.beginSheetModal(for: window) { response in
+            guard response == .OK, let url = panel.url else { return }
+            guard let bundleID = Bundle(url: url)?.bundleIdentifier else {
+                showMessage("This app has no bundle identifier. Choose another app.")
+                return
+            }
+            guard !model.config.pins.values.contains(bundleID) else {
+                showMessage("This app already has a pin. Use the letter menu to change it.")
+                return
+            }
+            let available = model.config.availableWindowPinLetters
+            let name = FileManager.default.displayName(atPath: url.path)
+            let letter = name.lowercased().first.flatMap { available.contains($0) ? $0 : nil } ?? available.first
+            if let letter, model.config.setWindowPin(letter, for: bundleID) {
+                model.commit()
+            } else {
+                showMessage("All letters are in use. Remove a pin to free a letter.")
+            }
+        }
+    }
+
+    private func showMessage(_ message: String) {
+        pinMessage = message
+        showPinMessage = true
     }
 }

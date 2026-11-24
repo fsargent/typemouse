@@ -43,6 +43,7 @@ final class GridMode {
     func update(config: Config) {
         stopScrolling()
         self.config = config
+        navigation?.preferredHand = config.gridHand
         if isActive { render() }
     }
 
@@ -51,7 +52,7 @@ final class GridMode {
         let primaryHeight = AX.primaryHeight
         let screens = screenFrames.map { Geometry.axRect(fromCocoa: $0, primaryHeight: primaryHeight) }
         guard !screens.isEmpty else { return }
-        navigation = GridNavigation(screens: screens, pointer: pointerLocation ?? .zero)
+        navigation = GridNavigation(screens: screens, pointer: pointerLocation ?? .zero, preferredHand: config.gridHand)
         isActive = true
         isScrolling = false
         capture.setActive(true)

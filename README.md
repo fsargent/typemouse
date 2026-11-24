@@ -104,12 +104,15 @@ Window mode uses the same labels as the window picker. The list shows on every m
 | Command (⌘) + `Q` | Quit the highlighted window's app |
 | `Esc` | Exit |
 
-Pin letters to apps so that they never change. A pinned app that is not running shows a "launch" row.
+To give an app a fixed letter, open **Settings → Window list** and click **Pin an app…**.
+Use the letter menu to change the pin, or click **×** to remove it.
+A pinned app that is not running shows a "launch" row.
 
 ### Grid mode keys
 
 Press Hyper + H to show a 3×3 grid over each display.
-The right-hand keys match the grid positions:
+On one display, the grid uses the hand you choose in **Settings → Grid mode**.
+The right-hand layout is the default:
 
 ```text
 U I O
@@ -126,7 +129,7 @@ X C V      M , .
 ```
 
 Each key replaces the grid with a smaller grid inside that cell.
-After selecting a display, either hand can refine the target.
+After the first selection, the grid shows your preferred keys. Either hand can refine the target.
 The blue marker shows the center of the selected cell.
 Opening the grid leaves the pointer where it is.
 Without a selection, Escape leaves the pointer alone. Space clicks there, and Enter starts scroll mode there.
@@ -211,6 +214,7 @@ TypeMouse writes the defaults on first launch. Every key is optional.
   "capsLockToHyper": false,
   "prioritizeLabels": true,
   "labelFontSize": 12,
+  "gridHand": "right",
   "scrollKeys": "vim",
   "scrollSpeed": 600,
   "enhancedUserInterfaceApps": ["com.google.Chrome", "com.brave.Browser", "…"]
@@ -221,6 +225,7 @@ TypeMouse writes the defaults on first launch. Every key is optional.
   `hyper` means all four. `meh` means Control, Option, and Shift.
 - A mode takes one hotkey or a list, for example `"search": ["hyper+o", "hyper+backspace"]`.
 - `[]` or `""` means no hotkey. A missing key uses the default.
+- `gridHand`: `left` or `right` (default). Sets the keys for one display and for refinements.
 - `scrollKeys`: `vim` (default), `esdf`, `wasd`, or `ijkl`. Arrow keys always work.
 - `scrollSpeed`: 50–5000 points per second, with a default of 600. Shift (⇧) triples this speed.
 - `clickStrategy`: `auto` (default) uses AXPress, with a mouse click for web content and when AXPress fails. `press` never moves the mouse. `mouse` always sends a mouse click.

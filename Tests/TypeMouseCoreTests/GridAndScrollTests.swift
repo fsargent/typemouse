@@ -31,10 +31,32 @@ final class GridNavigationTests: XCTestCase {
         XCTAssertEqual(grid.regions.map(\.frame), [left, right])
         XCTAssertTrue(grid.select("v"))
         XCTAssertEqual(grid.regions[0].frame, CGRect(x: -400, y: 300, width: 400, height: 300))
+        XCTAssertEqual(grid.regions[0].keys, Array("uiojklm,."))
         XCTAssertTrue(grid.select("u"))
         let point = try XCTUnwrap(grid.point)
         XCTAssertEqual(point.x, -400 + 400.0 / 6, accuracy: 0.0001)
         XCTAssertEqual(point.y, 350)
+    }
+
+    func testLeftHandPreferenceWorksOnOneDisplay() {
+        let screen = CGRect(x: 0, y: 0, width: 900, height: 900)
+        var grid = GridNavigation(screens: [screen], pointer: .zero, preferredHand: .left)
+        XCTAssertEqual(grid.regions[0].keys, Array("wersdfxcv"))
+        XCTAssertFalse(grid.select("u"))
+        XCTAssertTrue(grid.select("w"))
+        XCTAssertEqual(grid.point, CGPoint(x: 150, y: 150))
+    }
+
+    func testLeftHandPreferenceKeepsTwoDisplayKeysAndChangesRefinement() {
+        let left = CGRect(x: -900, y: 0, width: 900, height: 900)
+        let right = CGRect(x: 0, y: 0, width: 900, height: 900)
+        var grid = GridNavigation(screens: [right, left], pointer: .zero, preferredHand: .left)
+        XCTAssertEqual(grid.regions.map(\.keys), [Array("wersdfxcv"), Array("uiojklm,.")])
+        XCTAssertTrue(grid.select("o"))
+        XCTAssertEqual(grid.regions[0].keys, Array("wersdfxcv"))
+        XCTAssertTrue(grid.select("w"))
+        XCTAssertEqual(grid.point, CGPoint(x: 650, y: 50))
+        XCTAssertTrue(grid.select(".")) // The other hand still works for refinement.
     }
 
     func testEveryKeyMapsToItsRowAndColumn() {
@@ -107,8 +129,10 @@ final class ScrollingTests: XCTestCase {
         XCTAssertEqual(old.hotkeys.grid, ["hyper+h"])
         XCTAssertEqual(old.scrollKeys, .vim)
         XCTAssertEqual(old.scrollSpeed, 600)
-        let custom = try Config.decode(Data(#"{"hotkeys":{"grid":["hyper+g","hyper+h"]},"scrollKeys":"esdf","scrollSpeed":1250}"#.utf8))
+        XCTAssertEqual(old.gridHand, .right)
+        let custom = try Config.decode(Data(#"{"hotkeys":{"grid":["hyper+g","hyper+h"]},"gridHand":"left","scrollKeys":"esdf","scrollSpeed":1250}"#.utf8))
         XCTAssertEqual(custom.hotkeys.grid, ["hyper+g", "hyper+h"])
+        XCTAssertEqual(custom.gridHand, .left)
         XCTAssertEqual(custom.scrollKeys, .esdf)
         XCTAssertEqual(custom.scrollSpeed, 1250)
         XCTAssertEqual(try Config.decode(custom.encoded()), custom)

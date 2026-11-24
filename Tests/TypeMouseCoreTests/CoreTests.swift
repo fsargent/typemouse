@@ -103,6 +103,26 @@ final class GeometryTests: XCTestCase {
 }
 
 final class HotkeyAndConfigTests: XCTestCase {
+    func testChangingAndRemovingWindowPinsPreservesOtherApps() throws {
+        var config = try Config.decode(Data(#"{"windowPins":{"S":"com.example.slack","b":"com.example.browser"}}"#.utf8))
+        XCTAssertFalse(config.availableWindowPinLetters.contains("s"))
+        XCTAssertTrue(config.setWindowPin("L", for: "com.example.slack"))
+        XCTAssertEqual(config.windowPins, ["l": "com.example.slack", "b": "com.example.browser"])
+        XCTAssertEqual(try Config.decode(config.encoded()).pins, config.pins)
+
+        config.removeWindowPin(for: "com.example.slack")
+        XCTAssertEqual(config.pins, ["b": "com.example.browser"])
+        XCTAssertTrue(config.availableWindowPinLetters.contains("l"))
+    }
+
+    func testWindowPinCannotTakeAnotherAppsLetter() {
+        var config = Config()
+        config.windowPins = ["B": "com.example.browser", "s": "com.example.slack"]
+
+        XCTAssertFalse(config.setWindowPin("b", for: "com.example.slack"))
+        XCTAssertEqual(config.pins, ["b": "com.example.browser", "s": "com.example.slack"])
+    }
+
     func testHotkeyParsing() {
         let h = HotkeySpec("hyper+space")!
         XCTAssertEqual(h.keyCode, 49)
