@@ -16,8 +16,9 @@ final class WindowTiler {
     func apply(_ command: WindowCommand) {
         revision &+= 1
         guard let app = NSWorkspace.shared.frontmostApplication,
-              app.processIdentifier != ProcessInfo.processInfo.processIdentifier,
-              let window = AXUIElementCreateApplication(app.processIdentifier).element(kAXFocusedWindowAttribute),
+              app.processIdentifier != ProcessInfo.processInfo.processIdentifier else { return }
+        let application = AXUIElementCreateApplication(app.processIdentifier)
+        guard let window = application.element(kAXFocusedWindowAttribute),
               window.bool("AXFullScreen") != true,
               let frame = window.frame else { return }
 
@@ -36,7 +37,8 @@ final class WindowTiler {
             let destination = Geometry.axRect(fromCocoa: next.visibleFrame, primaryHeight: primaryHeight)
             lastPlacement = nil
             let target = WindowLayout.move(frame, from: bounds, to: destination)
-            if let applied = place(window, at: target, original: frame, anchorIn: destination, changesDisplay: true),
+            if let applied = place(window, in: application, at: target, original: frame,
+                                   anchorIn: destination, changesDisplay: true),
                !Geometry.nearlyEqual(applied, target) {
                 let requestedRevision = revision
                 // Some apps update their resize limits after the display move settles.
@@ -44,7 +46,7 @@ final class WindowTiler {
                     guard let self, self.revision == requestedRevision,
                           NSWorkspace.shared.frontmostApplication?.processIdentifier == app.processIdentifier,
                           let current = window.frame, Geometry.nearlyEqual(current, applied) else { return }
-                    _ = self.place(window, at: target, original: current, anchorIn: destination)
+                    _ = self.place(window, in: application, at: target, original: current, anchorIn: destination)
                 }
             }
             return
@@ -57,12 +59,19 @@ final class WindowTiler {
             step = (last.step + 1) % frames.count
         }
         lastPlacement = nil
-        guard let applied = place(window, at: frames[step], original: frame, anchorIn: bounds) else { return }
+        guard let applied = place(window, in: application, at: frames[step], original: frame, anchorIn: bounds) else { return }
         lastPlacement = Placement(window: window, command: command, bounds: bounds, step: step, frame: applied)
     }
 
-    private func place(_ window: AXUIElement, at target: CGRect, original: CGRect, anchorIn bounds: CGRect,
+    private func place(_ window: AXUIElement, in application: AXUIElement, at target: CGRect, original: CGRect, anchorIn bounds: CGRect,
                        changesDisplay: Bool = false) -> CGRect? {
+        // Enhanced accessibility can animate each frame write. Pause it while setting the frame.
+        // Chromium can apply the change even when the AX setter reports an error.
+        let enhanced = "AXEnhancedUserInterface"
+        let restoreEnhanced = application.bool(enhanced) == true
+        if restoreEnhanced { application.set(enhanced, kCFBooleanFalse) }
+        defer { if restoreEnhanced { application.set(enhanced, kCFBooleanTrue) } }
+
         var canMove = DarwinBoolean(false)
         var canResize = DarwinBoolean(false)
         guard AXUIElementIsAttributeSettable(window, kAXPositionAttribute as CFString, &canMove) == .success,
