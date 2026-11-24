@@ -3,6 +3,8 @@
 #
 # Environment:
 #   TYPEMOUSE_SIGN_IDENTITY  signing identity, or "-" for an ad-hoc signature (CI)
+#   TYPEMOUSE_SIGN_KEYCHAIN  limit signing identity lookup to this keychain
+#   TYPEMOUSE_RELEASE_SIGNING=1  use Hardened Runtime and a secure timestamp
 #   DEST                     folder for TypeMouse.app (default ~/Applications)
 #   VERSION                  sets CFBundleShortVersionString, for example 0.2.0
 #   UNIVERSAL=1              builds for Apple silicon and Intel
@@ -32,6 +34,17 @@ fi
 # Replace the binary in place. Keeping the same path keeps the Accessibility grant.
 cp "$BIN" "$APP/Contents/MacOS/TypeMouse"
 
-codesign --force --sign "$IDENTITY" --identifier dev.fsargent.typemouse "$APP"
+SIGN_OPTIONS=(--identifier dev.fsargent.typemouse)
+if [ -n "${TYPEMOUSE_SIGN_KEYCHAIN:-}" ]; then
+  SIGN_OPTIONS+=(--keychain "$TYPEMOUSE_SIGN_KEYCHAIN")
+fi
+if [ "${TYPEMOUSE_RELEASE_SIGNING:-0}" = 1 ]; then
+  if [ "$IDENTITY" = "-" ]; then
+    echo "Release signing requires a Developer ID identity." >&2
+    exit 1
+  fi
+  SIGN_OPTIONS+=(--options runtime --timestamp)
+fi
+codesign --force --sign "$IDENTITY" "${SIGN_OPTIONS[@]}" "$APP"
 codesign --verify --verbose=1 "$APP"
 echo "Installed $APP"

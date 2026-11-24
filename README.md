@@ -279,8 +279,8 @@ brew install --cask typemouse
 
 Homebrew loads casks from other taps only after you trust the tap. `brew trust` records that choice.
 
-The cask removes the download quarantine. After you install it, grant Accessibility permission when macOS asks.
-`brew upgrade` installs new releases. After each upgrade, grant Accessibility permission again (see the note under Download).
+After you install the app, grant Accessibility permission when macOS asks.
+`brew upgrade` installs new releases.
 
 ## Download
 
@@ -288,20 +288,27 @@ Each release on the [Releases page](https://github.com/fsargent/typemouse/releas
 
 1. Download and unzip it.
 2. Move `TypeMouse.app` to `/Applications` or `~/Applications`.
-3. Remove the download quarantine: `xattr -dr com.apple.quarantine /Applications/TypeMouse.app`
-4. Open the app, then grant Accessibility permission when macOS asks.
+3. Open the app and grant Accessibility permission when macOS asks.
 
-Release builds have an ad-hoc signature, not an Apple Developer ID.
-macOS sees each new version as a new app.
-After an update, remove TypeMouse from the Accessibility list and grant permission again.
+The release workflow signs new builds with Developer ID and notarizes them.
+Version 0.1.0 predates notarization. To open that version, run `xattr -dr com.apple.quarantine /Applications/TypeMouse.app` first.
+When you switch from an ad-hoc build to a Developer ID build, macOS may ask for Accessibility permission again.
 
 ## Publish a release
 
-1. Push a version tag: `git tag v0.2.0 && git push origin v0.2.0`
-2. The `Release` workflow runs the tests and builds a universal app.
-3. The workflow publishes the zip and its SHA-256 checksum with generated release notes.
-4. The workflow updates the cask in [fsargent/homebrew-tap](https://github.com/fsargent/homebrew-tap).
-   This step needs the `HOMEBREW_TAP_DEPLOY_KEY` secret. Without it, the step prints a warning and skips.
+1. Create a signed version tag from `main` with `git tag -s v0.2.0 -m "TypeMouse 0.2.0"`.
+2. Push it with `git push origin v0.2.0`.
+
+The `Release` workflow tests, builds, signs, and notarizes the universal app.
+It publishes the ZIP and its SHA-256 checksum after verifying the stapled ticket.
+It then updates the cask in [fsargent/homebrew-tap](https://github.com/fsargent/homebrew-tap).
+
+To check the release build and notarization without publishing, run `gh workflow run release.yml --ref main`.
+The workflow reads its Apple credentials from the repository's `release` environment.
+It uses `DEVELOPER_ID_P12` and `DEVELOPER_ID_P12_PASSWORD` for signing.
+It uses `APPLE_NOTARY_ID`, `APPLE_NOTARY_TEAM_ID`, and `APPLE_NOTARY_PASSWORD` for notarization.
+The cask update uses the `HOMEBREW_TAP_DEPLOY_KEY` secret.
+If the cask update fails after publication, rerun the failed job from GitHub Actions.
 
 ## Build and install from source
 
