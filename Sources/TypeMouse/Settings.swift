@@ -346,24 +346,33 @@ struct SettingsView: View {
     }
 
     private var windowManagementSections: some View {
-        Group {
-            Section("Default Hyper shortcuts") {
-                Text("W E R\nS D F\nX C V")
-                    .font(.system(.body, design: .monospaced))
-                    .accessibilityLabel("Top row W E R. Middle row S D F. Bottom row X C V.")
-                note("The edge keys cycle through half, two-thirds, and one-third. The corner keys resize to a quarter.")
-                note("Center switches between a centered half and the full usable display area.")
-                note("Move to next display keeps the window's relative size and position.")
-            }
-            Section("Hotkeys") {
-                ForEach(WindowCommand.allCases, id: \.self) { command in
-                    let slot = SettingsModel.Slot.command(command)
-                    LabeledContent(command.title) { slotView(slot) }
-                    if let other = model.conflict(slot) {
-                        Text("This hotkey is also used by \(other.title).")
-                            .font(.caption).foregroundStyle(.red)
+        let rows: [[WindowCommand]] = [
+            [.topLeft, .top, .topRight],
+            [.left, .center, .right],
+            [.bottomLeft, .bottom, .bottomRight],
+        ]
+        return Group {
+            Section("Window layout shortcuts") {
+                Grid(alignment: .topLeading, horizontalSpacing: 8, verticalSpacing: 8) {
+                    ForEach(rows.indices, id: \.self) { row in
+                        GridRow {
+                            ForEach(rows[row], id: \.self) { command in
+                                windowShortcutCell(command)
+                            }
+                        }
                     }
                 }
+                note("Edge shortcuts cycle through half, two-thirds, and one-third. Corner shortcuts resize to a quarter.")
+                note("Center switches between a centered half and the full usable display area.")
+            }
+            Section("Displays") {
+                LabeledContent(WindowCommand.nextDisplay.title) { slotView(.command(.nextDisplay)) }
+                if let other = model.conflict(.command(.nextDisplay)) {
+                    shortcutConflict(other)
+                }
+                note("Move to next display keeps the window's relative size and position.")
+            }
+            Section {
                 if case .command = model.recordingSlot {
                     note("Press the key combination. Press Escape to cancel.")
                 } else {
@@ -377,6 +386,27 @@ struct SettingsView: View {
                 .disabled(model.config.hotkeys.windowManagement.isEmpty)
             }
         }
+    }
+
+    private func windowShortcutCell(_ command: WindowCommand) -> some View {
+        let slot = SettingsModel.Slot.command(command)
+        return VStack(alignment: .leading, spacing: 5) {
+            Text(command.title)
+                .font(.subheadline.weight(.medium))
+                .fixedSize(horizontal: false, vertical: true)
+            slotView(slot)
+            if let other = model.conflict(slot) { shortcutConflict(other) }
+        }
+        .padding(8)
+        .frame(maxWidth: .infinity, minHeight: 66, alignment: .topLeading)
+        .background(.quaternary.opacity(0.45), in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    private func shortcutConflict(_ other: SettingsModel.Slot) -> some View {
+        Text("This hotkey is also used by \(other.title).")
+            .font(.caption)
+            .foregroundStyle(.red)
+            .fixedSize(horizontal: false, vertical: true)
     }
 
     private var generalSections: some View {
