@@ -3,12 +3,18 @@ import TypeMouseCore
 
 /// Refines a screen area without moving windows or taking focus from the target app.
 final class GridMode {
-    private(set) var isActive = false
-    private var isScrolling = false
+    private enum Phase: String { case grid, choosingScrollArea, scroll }
+    private var phase: Phase?
+    var isActive: Bool { phase != nil }
+    var isChoosingPoint: Bool { phase == .grid }
+    var isChoosingScrollArea: Bool { phase == .choosingScrollArea }
+
     private var navigation: GridNavigation?
+    private var scrollAreas: [(label: String, target: ScrollAreas.Target)] = []
+    private var prefix = ""
     private var scrollPoint = CGPoint.zero
     private var heldDirections: [Int64: ScrollDirection] = [:]
-    private var fast = false
+    private var speedMultiplier = 1.0
     private var timer: Timer?
     private var lastTick = 0.0
     private var remainder = CGPoint.zero
@@ -43,7 +49,7 @@ final class GridMode {
     func update(config: Config) {
         stopScrolling()
         self.config = config
-        if !config.isModeEnabled(isScrolling ? .scroll : .grid) {
+        if !config.isModeEnabled(isChoosingPoint ? .grid : .scroll) {
             exit(movePointer: false)
             return
         }
@@ -53,25 +59,43 @@ final class GridMode {
 
     func start() {
         screenFrames = NSScreen.screens.map(\.frame)
-        let primaryHeight = AX.primaryHeight
-        let screens = screenFrames.map { Geometry.axRect(fromCocoa: $0, primaryHeight: primaryHeight) }
+        let screens = quartzScreens
         guard !screens.isEmpty else { return }
         navigation = GridNavigation(screens: screens, pointer: pointerLocation ?? .zero, preferredHand: config.gridHand)
-        isActive = true
-        isScrolling = false
+        phase = .grid
         capture.setActive(true)
         Log.info("grid started on \(screens.count) displays")
         render()
     }
 
+    func startChoosingScrollArea() {
+        screenFrames = NSScreen.screens.map(\.frame)
+        phase = .choosingScrollArea
+        capture.setActive(true)
+        let targets = NSWorkspace.shared.frontmostApplication.map {
+            ScrollAreas.collect(app: $0, config: config, displays: quartzScreens)
+        } ?? []
+        let alphabet = Array(config.hintCharacters)
+        let labels = Hints.generate(count: targets.count, alphabet: alphabet)
+        scrollAreas = Array(zip(labels, targets))
+        Log.info("scroll area picker found \(targets.count) targets")
+        render()
+    }
+
+    private var quartzScreens: [CGRect] {
+        let primaryHeight = AX.primaryHeight
+        return screenFrames.map { Geometry.axRect(fromCocoa: $0, primaryHeight: primaryHeight) }
+    }
+
     func exit(movePointer: Bool = true) {
-        guard isActive else { return }
-        let point = movePointer && !isScrolling ? navigation?.point : nil
-        Log.info("\(isScrolling ? "scroll" : "grid") exited, move pointer: \(point != nil)")
+        guard let phase else { return }
+        let point = movePointer && phase == .grid ? navigation?.point : nil
+        Log.info("\(phase.rawValue) exited, move pointer: \(point != nil)")
         stopScrolling()
-        isActive = false
-        isScrolling = false
+        self.phase = nil
         navigation = nil
+        scrollAreas = []
+        prefix = ""
         overlay.hide()
         capture.setActive(false)
         if let point { Actuator.moveMouse(to: point) }
@@ -80,10 +104,10 @@ final class GridMode {
     func handle(_ key: KeyEvent) {
         guard isActive else { return }
         if key.special == .escape { exit(); return }
-        if isScrolling {
+        if phase == .scroll {
             guard !key.isRepeat,
                   let direction = config.scrollKeys.direction(character: key.char, keyCode: key.keyCode) else { return }
-            fast = key.shift && !key.hyperHeld
+            updateScrollSpeed(shift: key.shift, command: key.command, hyperHeld: key.hyperHeld)
             heldDirections[key.keyCode] = direction
             if timer == nil {
                 lastTick = ProcessInfo.processInfo.systemUptime
@@ -94,8 +118,12 @@ final class GridMode {
             }
             return
         }
-        // A held key selects one cell, regardless of keyboard repeat settings.
+        // A held key makes one selection, regardless of keyboard repeat settings.
         guard !key.isRepeat else { return }
+        if isChoosingScrollArea {
+            chooseScrollArea(key)
+            return
+        }
         switch key.special {
         case .space:
             guard let point = navigation?.point ?? pointerLocation else { return }
@@ -105,11 +133,7 @@ final class GridMode {
             guard config.isModeEnabled(.scroll) else { return }
             let target = navigation?.point
             guard let point = target ?? pointerLocation else { return }
-            scrollPoint = point
-            if let target { Actuator.moveMouse(to: target) }
-            isScrolling = true
-            Log.info("scroll started, keys: \(config.scrollKeys.rawValue), speed: \(config.scrollSpeed)")
-            render()
+            startScrolling(at: point, movePointer: target != nil)
         case .backspace:
             navigation?.back()
             render()
@@ -120,6 +144,34 @@ final class GridMode {
             guard key.char.count == 1, let character = key.char.first else { return }
             if navigation?.select(character) == true { render() }
         }
+    }
+
+    private func chooseScrollArea(_ key: KeyEvent) {
+        if key.special == .enter, let point = pointerLocation {
+            startScrolling(at: point, movePointer: false)
+            return
+        }
+        if key.special == .backspace {
+            if !prefix.isEmpty { prefix.removeLast() }
+            render()
+            return
+        }
+        guard !key.char.isEmpty else { return }
+        let next = prefix + key.char
+        if let match = scrollAreas.first(where: { $0.label == next }) {
+            startScrolling(at: match.target.point, movePointer: true)
+        } else if scrollAreas.contains(where: { $0.label.hasPrefix(next) }) {
+            prefix = next
+            render()
+        }
+    }
+
+    private func startScrolling(at point: CGPoint, movePointer: Bool) {
+        scrollPoint = point
+        if movePointer { Actuator.moveMouse(to: point) }
+        phase = .scroll
+        Log.info("scroll started, keys: \(config.scrollKeys.rawValue), speed: \(config.scrollSpeed)")
+        render()
     }
 
     func keyUp(_ keyCode: Int64) {
@@ -133,7 +185,16 @@ final class GridMode {
 
     func flagsChanged(_ flags: CGEventFlags) {
         let hyper: CGEventFlags = [.maskShift, .maskCommand, .maskControl, .maskAlternate]
-        fast = flags.contains(.maskShift) && !flags.contains(hyper)
+        updateScrollSpeed(shift: flags.contains(.maskShift), command: flags.contains(.maskCommand),
+                          hyperHeld: flags.contains(hyper))
+    }
+
+    private func updateScrollSpeed(shift: Bool, command: Bool, hyperHeld: Bool) {
+        guard shift, !hyperHeld else {
+            speedMultiplier = 1
+            return
+        }
+        speedMultiplier = command ? 6 : 3
     }
 
     private func stopScrolling() {
@@ -141,7 +202,7 @@ final class GridMode {
         timer = nil
         heldDirections = [:]
         remainder = .zero
-        fast = false
+        speedMultiplier = 1
     }
 
     private func tick() {
@@ -152,7 +213,7 @@ final class GridMode {
 
     private func scroll(elapsed: Double) {
         let vector = ScrollVector.combined(Array(heldDirections.values))
-        let distance = Double(config.scrollSpeed) * (fast ? 3 : 1) * elapsed
+        let distance = Double(config.scrollSpeed) * speedMultiplier * elapsed
         remainder.x += vector.horizontal * distance
         remainder.y += vector.vertical * distance
         let x = Int32(remainder.x.rounded(.towardZero))
@@ -168,15 +229,27 @@ final class GridMode {
     }
 
     private func render() {
-        guard let navigation else { return }
-        if isScrolling {
+        if phase == .scroll {
             overlay.render([LabelSpec(text: "", typedCount: 0,
                                       rect: CGRect(x: scrollPoint.x - 5, y: scrollPoint.y - 5, width: 10, height: 10),
                                       style: .highlighted)],
-                           banner: "Scroll · \(config.scrollKeys.directions) / arrow keys · Shift: faster · Esc: exit",
+                           banner: "Scroll · \(config.scrollKeys.directions) / arrow keys · Shift: 3× · Command + Shift: 6× · Esc: exit",
                            bannerPoint: scrollPoint)
             return
         }
+        if isChoosingScrollArea {
+            let matches = scrollAreas.filter { $0.label.hasPrefix(prefix) }
+            let outlines = matches.map { LabelSpec(text: "", typedCount: 0, rect: $0.target.frame, style: .region) }
+            let labels = matches.map { label, target in
+                let anchor = CGRect(origin: target.point, size: .zero)
+                return LabelSpec(text: label, typedCount: prefix.count, rect: anchor, style: .normal)
+            }
+            let banner = labels.isEmpty ? "No scrollable areas reported · Enter: scroll at pointer · Esc: exit"
+                : "Scroll · Type a label to choose an area · Enter: scroll at pointer · Esc: exit"
+            overlay.render(outlines + labels, banner: banner, bannerPoint: matches.first?.target.point)
+            return
+        }
+        guard let navigation else { return }
         var labels: [LabelSpec] = []
         for region in navigation.regions {
             for (index, cell) in region.cells.enumerated() {

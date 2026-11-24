@@ -22,6 +22,7 @@ It is a personal replacement for [Homerow](https://www.homerow.app), with a sepa
 | `hyper+return` | Mission Control picker | Opens Mission Control and labels its window previews. |
 | `hyper+l` | Window | Shows a list of windows with stable labels. Type a label to focus the window. |
 | `hyper+h` | Grid | Refines a mouse target through smaller grids. Press `Enter` to scroll there. |
+| `hyper+u` | Scroll | Labels scrollable areas in the focused window. Type a label to scroll there. |
 | Hyper + layout key | Window management | Moves and resizes the focused window. |
 | none | Search | Type part of an element's text. Press `Enter` to click the highlighted match. |
 
@@ -121,7 +122,7 @@ A pinned app that is not running shows a "launch" row.
 ### Grid mode keys
 
 Press Hyper + H to show a 3×3 grid over each display.
-On one display, the grid uses the hand you choose in **Settings → Grid mode**.
+On one display, the grid uses the hand you choose in **Settings → Grid**.
 The right-hand layout is the default:
 
 ```text
@@ -155,9 +156,11 @@ Without a selection, Escape leaves the pointer alone. Space clicks there, and En
 
 ### Scroll mode keys
 
-Press `Enter` in grid mode to scroll at the target.
+Press Hyper + U to label the scrollable areas in the focused window. Type a label to start scrolling there.
+Some apps do not report every scrollable area through Accessibility. Press Enter in the picker to scroll at the pointer.
+You can also press Enter from the grid to scroll at its selected point.
 Hold a direction key to scroll continuously. Release it to stop.
-Choose the letter keys and scroll speed in **Settings → Scroll mode**.
+Set the shortcut, letter keys, and speed under **Scroll mode** in **Settings → Grid**.
 
 | Layout | Up | Left | Down | Right |
 |---|---|---|---|---|
@@ -168,6 +171,7 @@ Choose the letter keys and scroll speed in **Settings → Scroll mode**.
 
 Arrow keys always scroll, with every layout.
 Hold Shift (⇧) for three times the configured speed.
+Hold Command (⌘) + Shift (⇧) for six times the configured speed.
 Press `Esc` to exit scroll mode.
 The default speed is 600 points per second.
 
@@ -194,8 +198,7 @@ Open **Settings…** from the menu-bar icon, or open TypeMouse again while it ru
 
 Select a mode in the sidebar to see what it does, how to open it, and what you can change.
 Use the switch at the top of each mode page to enable or disable it. The switch keeps its saved hotkeys.
-**Click mode** includes Search. **Window selection** includes Window list, Window picker, and Mission Control picker.
-For example, **Click mode** has label size and chain click settings. **Scroll mode** has the key layout and speed.
+**Click** includes Search. **Grid** includes Scroll mode. **Window selection** includes all three window selectors.
 Use **General** for Caps Lock as Hyper, launch at login, shared hint characters, and access to the config file.
 
 Click a hotkey to record a new combination. Press `Esc` to cancel.
@@ -234,7 +237,7 @@ TypeMouse writes the defaults on first launch. Every key is optional.
 {
   "hintCharacters": "fjdkslaghrueiwotyvmcxbn",
   "disabledModes": [],
-  "hotkeys": { "click": "hyper+j", "picker": "hyper+k", "missionControl": "hyper+return", "window": "hyper+l", "grid": "hyper+h", "search": [] },
+  "hotkeys": { "click": "hyper+j", "picker": "hyper+k", "missionControl": "hyper+return", "window": "hyper+l", "grid": "hyper+h", "scroll": "hyper+u", "search": [] },
   "windowPins": { "c": "com.google.Chrome", "s": "com.tinyspeck.slackmacgap", "t": "com.mitchellh.ghostty" },
   "clickStrategy": { "com.example.app": "mouse" },
   "restoreMousePosition": true,
@@ -261,7 +264,7 @@ TypeMouse writes the defaults on first launch. Every key is optional.
 - `hotkeys.windowManagement` overrides individual window shortcuts. For example, `{"center":"ctrl+opt+d","nextDisplay":""}` changes Center and clears Move to next display.
 - `gridHand`: `left` or `right` (default). Sets the keys for one display and for refinements.
 - `scrollKeys`: `vim` (default), `esdf`, `wasd`, or `ijkl`. Arrow keys always work.
-- `scrollSpeed`: 50–5000 points per second, with a default of 600. Shift (⇧) triples this speed.
+- `scrollSpeed`: 50–5000 points per second, with a default of 600.
 - `clickStrategy`: `auto` (default) uses AXPress, with a mouse click for web content and when AXPress fails. `press` never moves the mouse. `mouse` always sends a mouse click.
 - `enhancedUserInterfaceApps`: apps that get the `AXEnhancedUserInterface` flag. Chromium browsers need it to show web page labels. The default lists Chrome, Brave, Edge, Arc, Vivaldi, and Opera. The flag can slow window moves by tools such as Rectangle or Raycast.
 - To find a bundle identifier, run `osascript -e 'id of app "Slack"'`.

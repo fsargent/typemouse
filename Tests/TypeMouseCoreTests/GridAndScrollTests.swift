@@ -102,6 +102,18 @@ final class GridNavigationTests: XCTestCase {
 }
 
 final class ScrollingTests: XCTestCase {
+    func testWebViewportWithRowsOutsideItsVisibleBounds() {
+        let viewport = CGRect(x: 80, y: 500, width: 1816, height: 570)
+        XCTAssertTrue(ScrollViewport.hasOverflow(viewport: viewport,
+                                                 content: CGRect(x: 81, y: 1500, width: 1814, height: 30)))
+        XCTAssertTrue(ScrollViewport.hasOverflow(viewport: viewport,
+                                                 content: CGRect(x: 81, y: 100, width: 1814, height: 30)))
+        XCTAssertFalse(ScrollViewport.hasOverflow(viewport: viewport,
+                                                  content: CGRect(x: 81, y: 499, width: 1814, height: 30)))
+        XCTAssertFalse(ScrollViewport.hasOverflow(viewport: viewport,
+                                                  content: CGRect(x: 20, y: 1500, width: 30, height: 30)))
+    }
+
     func testAllLayoutsAndArrowKeys() {
         let expected: [(ScrollKeys, String)] = [(.vim, "khjl"), (.esdf, "esdf"), (.wasd, "wasd"), (.ijkl, "ijkl")]
         for (layout, keys) in expected {

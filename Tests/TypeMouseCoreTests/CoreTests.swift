@@ -132,6 +132,13 @@ final class HotkeyAndConfigTests: XCTestCase {
         XCTAssertTrue(cleared.hotkeys.missionControl.isEmpty)
         XCTAssertEqual(try Config.decode(cleared.encoded()), cleared)
     }
+    func testScrollHotkeyKeepsDefaultAndCanBeCleared() throws {
+        let defaults = try Config.decode(Data(#"{"hotkeys":{"grid":"hyper+h"}}"#.utf8))
+        XCTAssertEqual(defaults.hotkeys.scroll, ["hyper+u"])
+        let cleared = try Config.decode(Data(#"{"hotkeys":{"scroll":[]}}"#.utf8))
+        XCTAssertTrue(cleared.hotkeys.scroll.isEmpty)
+        XCTAssertEqual(try Config.decode(cleared.encoded()), cleared)
+    }
     func testChangingAndRemovingWindowPinsPreservesOtherApps() throws {
         var config = try Config.decode(Data(#"{"windowPins":{"S":"com.example.slack","b":"com.example.browser"}}"#.utf8))
         XCTAssertFalse(config.availableWindowPinLetters.contains("s"))

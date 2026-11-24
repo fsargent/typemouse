@@ -4,7 +4,7 @@ import QuartzCore
 
 /// One label to draw.
 struct LabelSpec {
-    enum Style { case normal, highlighted, outline }
+    enum Style { case normal, highlighted, outline, region }
     struct Caption {
         let lines: [String]
         let maxWidth: CGFloat
@@ -45,6 +45,11 @@ final class Overlay {
             let local = cocoa.offsetBy(dx: -screen.frame.minX, dy: -screen.frame.minY)
             if spec.style == .outline || spec.style == .highlighted {
                 root.addSublayer(outline(local, strong: spec.style == .highlighted))
+            }
+            if spec.style == .region {
+                let box = outline(local.insetBy(dx: 3, dy: 3), strong: true)
+                box.borderWidth = 3
+                root.addSublayer(box)
             }
             if !spec.text.isEmpty {
                 let badge = label(spec, in: local, bounds: root.bounds, scale: screen.backingScaleFactor)

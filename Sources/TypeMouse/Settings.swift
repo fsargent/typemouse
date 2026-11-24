@@ -48,6 +48,7 @@ final class SettingsModel: ObservableObject {
         case picker = "Window picker"
         case missionControl = "Mission Control picker"
         case grid = "Grid mode"
+        case scroll = "Scroll mode"
 
         var id: String { rawValue }
 
@@ -59,6 +60,7 @@ final class SettingsModel: ObservableObject {
             case .picker: return .windowPicker
             case .missionControl: return .missionControl
             case .grid: return .grid
+            case .scroll: return .scroll
             }
         }
 
@@ -70,6 +72,7 @@ final class SettingsModel: ObservableObject {
             case .picker: return \.picker
             case .missionControl: return \.missionControl
             case .grid: return \.grid
+            case .scroll: return \.scroll
             }
         }
     }
@@ -207,10 +210,9 @@ final class SettingsModel: ObservableObject {
 struct SettingsView: View {
     private enum Page: String, CaseIterable {
         case general = "General"
-        case click = "Click mode"
+        case click = "Click"
+        case grid = "Grid"
         case windowSelection = "Window selection"
-        case grid = "Grid mode"
-        case scroll = "Scroll mode"
         case windowManagement = "Window management"
 
         var mode: Config.Mode? {
@@ -219,7 +221,6 @@ struct SettingsView: View {
             case .click: return .click
             case .windowSelection: return .windowSelection
             case .grid: return .grid
-            case .scroll: return .scroll
             case .windowManagement: return .windowManagement
             }
         }
@@ -230,7 +231,6 @@ struct SettingsView: View {
             case .click: return "cursorarrow.click"
             case .windowSelection: return "macwindow"
             case .grid: return "square.grid.3x3"
-            case .scroll: return "arrow.up.and.down"
             case .windowManagement: return "rectangle.split.2x2"
             }
         }
@@ -245,8 +245,6 @@ struct SettingsView: View {
                 return "Switch windows from a list, the desktop, or Mission Control."
             case .grid:
                 return "Select cells in a 3×3 grid to position the pointer. Each key narrows the target."
-            case .scroll:
-                return "Press Enter in grid mode to scroll at the selected point or the current pointer position."
             case .windowManagement:
                 return "Move and resize the focused window with shortcuts that match positions on the display."
             }
@@ -286,9 +284,6 @@ struct SettingsView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     if let mode = page.mode {
                         modeToggle("Enable " + page.rawValue.lowercased(), mode)
-                    }
-                    if page == .scroll && !model.config.isModeEnabled(.grid) {
-                        note("Enable Grid mode to enter Scroll mode.")
                     }
                 }
                 pageSections(page)
@@ -348,20 +343,26 @@ struct SettingsView: View {
                 }
                 note("Press Backspace to undo a selection. Press Escape to move to the selected point and exit. Press Space to click.")
                 note("Without a selection, Space clicks at the current pointer position and Escape leaves the pointer in place.")
-                Button("Scroll mode settings") { selection = .scroll }
+            }
+            Section("Scroll mode") {
+                modeToggle("Enable scroll mode", .scroll)
+                Group {
+                    note("Use the Scroll mode hotkey to label scrollable areas in the focused window. Type a label to scroll there.")
+                    shortcutControls(.scroll)
+                    note("Press Enter in the scroll picker to scroll at the pointer. From the grid, Enter uses the selected point if there is one.")
+                    Picker("Scroll keys", selection: setting(\.scrollKeys)) {
+                        ForEach(ScrollKeys.allCases, id: \.self) { keys in
+                            Text(keys.displayName).tag(keys)
+                        }
+                    }
+                    numberRow("Scroll speed", unit: "pt/s", range: 50...5000, step: 50, value: setting(\.scrollSpeed))
+                    note("Hold a direction key to scroll. Arrow keys work with every layout. Press Escape to exit.")
+                    note("Hold Shift (⇧) for 3× speed. Hold Command (⌘) + Shift (⇧) for 6× speed.")
+                }
+                .disabled(!model.config.isModeEnabled(.scroll))
             }
         case .windowManagement:
             windowManagementSections
-        case .scroll:
-            Section("Controls") {
-                Picker("Scroll keys", selection: setting(\.scrollKeys)) {
-                    ForEach(ScrollKeys.allCases, id: \.self) { keys in
-                        Text(keys.displayName).tag(keys)
-                    }
-                }
-                numberRow("Scroll speed", unit: "pt/s", range: 50...5000, step: 50, value: setting(\.scrollSpeed))
-                note("Hold a direction key to scroll. Arrow keys work with every layout. Hold Shift for three times the speed. Press Escape to exit.")
-            }
         }
     }
 

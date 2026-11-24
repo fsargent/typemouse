@@ -27,10 +27,11 @@ public struct Config: Codable, Equatable {
         public var picker = ["hyper+k"]
         public var missionControl = ["hyper+return"]
         public var grid = ["hyper+h"]
+        public var scroll = ["hyper+u"]
         /// Per-command overrides. An empty string clears the command's default hotkey.
         public var windowManagement: [String: String] = [:]
 
-        enum CodingKeys: String, CodingKey { case click, search, window, picker, missionControl, grid, windowManagement }
+        enum CodingKeys: String, CodingKey { case click, search, window, picker, missionControl, grid, scroll, windowManagement }
 
         public init() {}
 
@@ -43,6 +44,7 @@ public struct Config: Codable, Equatable {
             picker = try Self.decode(c, .picker) ?? d.picker
             missionControl = try Self.decode(c, .missionControl) ?? d.missionControl
             grid = try Self.decode(c, .grid) ?? d.grid
+            scroll = try Self.decode(c, .scroll) ?? d.scroll
             windowManagement = try c.decodeIfPresent([String: String].self, forKey: .windowManagement) ?? [:]
         }
 
@@ -54,6 +56,7 @@ public struct Config: Codable, Equatable {
             try Self.encode(picker, &c, .picker)
             try Self.encode(missionControl, &c, .missionControl)
             try Self.encode(grid, &c, .grid)
+            try Self.encode(scroll, &c, .scroll)
             if !windowManagement.isEmpty { try c.encode(windowManagement, forKey: .windowManagement) }
         }
 

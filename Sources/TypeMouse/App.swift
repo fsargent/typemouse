@@ -110,6 +110,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             (.windowPicker, "picker", config.hotkeys.picker, { [weak self] in self?.togglePicker() }),
             (.missionControl, "mission control picker", config.hotkeys.missionControl, { [weak self] in self?.togglePicker(missionControl: true) }),
             (.grid, "grid", config.hotkeys.grid, { [weak self] in self?.toggleGrid() }),
+            (.scroll, "scroll", config.hotkeys.scroll, { [weak self] in self?.toggleGrid(pickScrollArea: true) }),
         ]
         for (mode, name, strings, action) in pairs where config.isModeEnabled(mode) {
             for string in strings {
@@ -191,13 +192,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func toggleGrid() {
-        guard config.isModeEnabled(.grid),
+    private func toggleGrid(pickScrollArea: Bool = false) {
+        guard config.isModeEnabled(pickScrollArea ? .scroll : .grid),
               capture.active || startCapture(prompt: true) else { return }
         hints.exit()
         windows.exit()
         picker.exit()
-        if grid.isActive { grid.exit() } else { grid.start() }
+        let wasActive = grid.isActive
+        let switchMode = pickScrollArea ? grid.isChoosingPoint : grid.isChoosingScrollArea
+        grid.exit(movePointer: !pickScrollArea)
+        guard !wasActive || switchMode else { return }
+        if pickScrollArea { grid.startChoosingScrollArea() } else { grid.start() }
     }
 
     /// While a mode is active the tap swallows everything, including our own hotkeys,
@@ -239,7 +244,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                                          ("Window list", #selector(menuWindows), Config.Mode.windowList, \Config.Hotkeys.window),
                                          ("Window picker", #selector(menuPicker), Config.Mode.windowPicker, \Config.Hotkeys.picker),
                                          ("Mission Control picker", #selector(menuMissionControl), Config.Mode.missionControl, \Config.Hotkeys.missionControl),
-                                         ("Grid mode", #selector(menuGrid), Config.Mode.grid, \Config.Hotkeys.grid)] {
+                                         ("Grid mode", #selector(menuGrid), Config.Mode.grid, \Config.Hotkeys.grid),
+                                         ("Choose scrollable area", #selector(menuScroll), Config.Mode.scroll, \Config.Hotkeys.scroll)] {
             let mi = menu.addItem(withTitle: title, action: action, keyEquivalent: "")
             mi.target = self
             modeMenuItems.append((mi, title, mode, keyPath))
@@ -284,6 +290,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func menuGrid() {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { self.toggleGrid() }
+    }
+
+    @objc private func menuScroll() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { self.toggleGrid(pickScrollArea: true) }
     }
 
     @objc private func toggleLoginItem(_ sender: NSMenuItem) {
