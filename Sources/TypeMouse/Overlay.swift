@@ -5,12 +5,18 @@ import QuartzCore
 /// One label to draw.
 struct LabelSpec {
     enum Style { case normal, highlighted, outline }
+    struct Caption {
+        let lines: [String]
+        let maxWidth: CGFloat
+    }
+
     var text: String
     var typedCount: Int
     var rect: CGRect // AX coordinates
     var style: Style
     /// Overrides the overlay's font size for this label.
     var fontSize: CGFloat? = nil
+    var caption: Caption? = nil
 }
 
 /// Click-through, transparent windows (one per screen) that draw labels with Core Animation.
@@ -41,7 +47,19 @@ final class Overlay {
                 root.addSublayer(outline(local, strong: spec.style == .highlighted))
             }
             if !spec.text.isEmpty {
-                root.addSublayer(label(spec, in: local, bounds: root.bounds, scale: screen.backingScaleFactor))
+                let badge = label(spec, in: local, bounds: root.bounds, scale: screen.backingScaleFactor)
+                if let caption = spec.caption {
+                    let panel = bannerLayer(caption.lines, maxWidth: min(caption.maxWidth, root.bounds.width),
+                                            alignment: .center, scale: screen.backingScaleFactor)
+                    let gap: CGFloat = 6
+                    let spaceAbove = panel.bounds.height + gap
+                    badge.frame.origin.y = max(root.bounds.minY, min(badge.frame.minY, root.bounds.maxY - badge.bounds.height - spaceAbove))
+                    panel.frame.origin = CGPoint(x: min(max(root.bounds.minX, badge.frame.midX - panel.bounds.width / 2),
+                                                        root.bounds.maxX - panel.bounds.width),
+                                                 y: badge.frame.maxY + gap)
+                    root.addSublayer(panel)
+                }
+                root.addSublayer(badge)
             }
         }
 
@@ -52,7 +70,9 @@ final class Overlay {
             bannerScreen.map { entry.screen.frame.contains($0) } ?? (entry.screen == NSScreen.main)
         }) ?? windows.first,
            let root = window.contentView?.layer {
-            root.addSublayer(bannerLayer(banner, bounds: root.bounds, scale: screen.backingScaleFactor))
+            let panel = bannerLayer([banner], minWidth: 280, maxWidth: root.bounds.width, scale: screen.backingScaleFactor)
+            panel.frame.origin = CGPoint(x: root.bounds.midX - panel.bounds.width / 2, y: root.bounds.maxY - 140)
+            root.addSublayer(panel)
         }
         CATransaction.commit()
         for (_, w) in windows { w.orderFrontRegardless() }
@@ -142,20 +162,54 @@ final class Overlay {
         return l
     }
 
-    private func bannerLayer(_ text: String, bounds: CGRect, scale: CGFloat) -> CALayer {
+    private func bannerLayer(_ lines: [String], minWidth: CGFloat = 0, maxWidth: CGFloat,
+                             alignment: CATextLayerAlignmentMode = .left, scale: CGFloat) -> CALayer {
         let font = NSFont.monospacedSystemFont(ofSize: 15, weight: .medium)
-        let s = NSAttributedString(string: text, attributes: [.font: font, .foregroundColor: NSColor.white])
-        let size = s.size()
+        let strings = lines.map { NSAttributedString(string: $0, attributes: [.font: font, .foregroundColor: NSColor.white]) }
+        let lineHeight = ceil(strings.map { $0.size().height }.max() ?? font.pointSize)
+        let textWidth = ceil(strings.map { $0.size().width }.max() ?? 0)
+        let horizontalPadding = min(14, maxWidth / 4)
+        let width = min(maxWidth, max(minWidth, textWidth + horizontalPadding * 2))
+        let height = lineHeight * CGFloat(lines.count) + 16
         let box = CALayer()
-        let w = max(280, ceil(size.width) + 28)
-        box.frame = CGRect(x: bounds.midX - w / 2, y: bounds.maxY - 140, width: w, height: ceil(size.height) + 16)
+        box.frame = CGRect(x: 0, y: 0, width: width, height: height)
         box.backgroundColor = NSColor.black.withAlphaComponent(0.8).cgColor
         box.cornerRadius = 8
-        let t = CATextLayer()
-        t.string = s
-        t.contentsScale = scale
-        t.frame = CGRect(x: 14, y: 8, width: w - 28, height: ceil(size.height))
-        box.addSublayer(t)
+        let lineWidth = width - horizontalPadding * 2
+        for (index, line) in strings.enumerated() {
+            let layer = CATextLayer()
+            layer.string = fitBannerLine(line, width: lineWidth)
+            layer.contentsScale = scale
+            layer.alignmentMode = alignment
+            layer.isWrapped = false
+            layer.frame = CGRect(x: horizontalPadding, y: height - 8 - CGFloat(index + 1) * lineHeight,
+                                 width: lineWidth, height: lineHeight)
+            box.addSublayer(layer)
+        }
         return box
+    }
+
+    private func fitBannerLine(_ line: NSAttributedString, width: CGFloat) -> NSAttributedString {
+        guard line.size().width > width, line.length > 0 else { return line }
+        let attributes = line.attributes(at: 0, effectiveRange: nil)
+        let ellipsis = NSAttributedString(string: "…", attributes: attributes)
+        guard ellipsis.size().width <= width else { return NSAttributedString(string: "") }
+
+        // Measure the text that will actually draw so a narrow caption never wraps.
+        let characters = Array(line.string)
+        var best = ellipsis
+        var low = 1
+        var high = characters.count - 1
+        while low <= high {
+            let count = (low + high) / 2
+            let candidate = NSAttributedString(string: String(characters.prefix(count)) + "…", attributes: attributes)
+            if candidate.size().width <= width {
+                best = candidate
+                low = count + 1
+            } else {
+                high = count - 1
+            }
+        }
+        return best
     }
 }

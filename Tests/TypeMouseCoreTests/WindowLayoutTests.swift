@@ -24,7 +24,9 @@ final class WindowLayoutTests: XCTestCase {
 
     func testCenterAndCorners() {
         XCTAssertEqual(WindowCommand.center.frames(in: display), [
-            CGRect(x: -900, y: -600, width: 600, height: 900), display,
+            display,
+            CGRect(x: -900, y: -600, width: 600, height: 900),
+            CGRect(x: -800, y: -600, width: 400, height: 900),
         ])
         XCTAssertEqual(WindowCommand.topLeft.frames(in: display), [CGRect(x: -1200, y: -600, width: 600, height: 450)])
         XCTAssertEqual(WindowCommand.topRight.frames(in: display), [CGRect(x: -600, y: -600, width: 600, height: 450)])

@@ -9,6 +9,7 @@ final class MissionControlPicker {
         let windowID: CGWindowID?
         let appID: String
         let name: String
+        let title: String
         let frame: CGRect
 
         var identity: UInt32 { windowID ?? UInt32(truncatingIfNeeded: CFHash(button)) }
@@ -83,7 +84,7 @@ final class MissionControlPicker {
             let thumbnail = thumbnails[hits[0]]
             if thumbnail.button.perform(kAXPressAction) == .success {
                 exit(closeOverview: false)
-                if config.clickAfterPicker { notifyWhenFocused(thumbnail) }
+                finishSelection(thumbnail)
             } else {
                 NSSound.beep()
                 refresh(Self.snapshot())
@@ -108,7 +109,9 @@ final class MissionControlPicker {
         // Wait for the first two matching samples so labels do not follow the opening animation.
         guard rendered || sameFrames || age > 0.8 else { return }
         let sorted = snapshot.sorted { $0.identity < $1.identity }
-        if thumbnails.map(\.identity) != sorted.map(\.identity) {
+        let newWindows = thumbnails.map(\.identity) != sorted.map(\.identity)
+        let newTitles = zip(thumbnails, sorted).contains { $0.name != $1.name || $0.title != $1.title }
+        if newWindows {
             Log.info("mission control picker: \(sorted.count) thumbnails")
             let items = sorted.map { PickerLabels.Item(windowID: $0.identity, appID: $0.appID, appName: $0.name) }
             let assigned = PickerLabels.assign(items, pins: config.pins, windowKeys: config.hintAlphabet)
@@ -116,7 +119,7 @@ final class MissionControlPicker {
             typed = ""
         }
         thumbnails = sorted
-        if !rendered || !sameFrames { render() }
+        if !rendered || !sameFrames || newWindows || newTitles { render() }
         rendered = true
     }
 
@@ -124,26 +127,44 @@ final class MissionControlPicker {
         let hints = zip(thumbnails, labels).compactMap { thumbnail, label -> LabelSpec? in
             guard !label.isEmpty, label.hasPrefix(typed) else { return nil }
             let point = CGPoint(x: thumbnail.frame.midX, y: thumbnail.frame.midY)
+            let lines = thumbnail.title.isEmpty || thumbnail.title == thumbnail.name
+                ? [thumbnail.name] : [thumbnail.name, thumbnail.title]
             return LabelSpec(text: label, typedCount: typed.count,
                              rect: CGRect(x: point.x - 1, y: point.y - 1, width: 2, height: 2), style: .normal,
-                             fontSize: WindowPicker.fontSize(for: label, in: thumbnail.frame))
+                             fontSize: WindowPicker.fontSize(for: label, in: thumbnail.frame),
+                             caption: .init(lines: lines, maxWidth: min(420, thumbnail.frame.width)))
         }
         overlay.render(hints)
     }
 
-    private func notifyWhenFocused(_ target: Thumbnail, attempts: Int = 12) {
-        guard attempts > 0, !isActive else { return }
+    private func finishSelection(_ target: Thumbnail, attempts: Int = 12) {
+        guard attempts > 0, !capture.active else { return }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.07) { [weak self] in
-            guard let self, !self.isActive else { return }
-            if let app = NSWorkspace.shared.frontmostApplication, app.bundleIdentifier == target.appID,
-               app.processIdentifier != ProcessInfo.processInfo.processIdentifier,
-               let window = AXUIElementCreateApplication(app.processIdentifier).element(kAXFocusedWindowAttribute),
-               target.windowID == nil || target.windowID == window.windowID,
-               Self.snapshot() == nil {
-                self.onPicked?(WindowInfo(app: app, window: window, id: window.windowID, title: "", minimized: false))
-            } else {
-                self.notifyWhenFocused(target, attempts: attempts - 1)
+            guard let self, !self.capture.active else { return }
+            guard let app = NSWorkspace.shared.frontmostApplication, app.bundleIdentifier == target.appID,
+                  app.processIdentifier != ProcessInfo.processInfo.processIdentifier, Self.snapshot() == nil else {
+                self.finishSelection(target, attempts: attempts - 1)
+                return
             }
+
+            let application = AXUIElementCreateApplication(app.processIdentifier)
+            let focused = application.element(kAXFocusedWindowAttribute)
+            if let focused, target.windowID == nil || target.windowID == focused.windowID {
+                if self.config.clickAfterPicker {
+                    self.onPicked?(WindowInfo(app: app, window: focused, id: focused.windowID, title: "", minimized: false))
+                }
+                return
+            }
+
+            // Mission Control can exit with another window of the same app in front.
+            if attempts <= 8, let id = target.windowID,
+               let selected = application.elements(kAXWindowsAttribute).first(where: { $0.windowID == id }) {
+                let info = WindowInfo(app: app, window: selected, id: id, title: target.title, minimized: false)
+                WindowActions.focus(info)
+                if self.config.clickAfterPicker { self.onPicked?(info) }
+                return
+            }
+            self.finishSelection(target, attempts: attempts - 1)
         }
     }
 
@@ -175,9 +196,13 @@ final class MissionControlPicker {
                     }.flatMap { NSRunningApplication(processIdentifier: $0) }
                     let bundle = identifier.range(of: ".space.", options: .backwards).map { String(identifier[..<$0.lowerBound]) }
                     let appID = bundle ?? owner?.bundleIdentifier ?? identifier
-                    let name = NSRunningApplication.runningApplications(withBundleIdentifier: appID).first?.localizedName
-                        ?? owner?.localizedName ?? (values[kAXTitleAttribute] as? String) ?? "Window"
-                    return Thumbnail(button: button, windowID: windowID, appID: appID.isEmpty ? name : appID, name: name, frame: frame)
+                    let title = (values[kAXTitleAttribute] as? String ?? "")
+                        .split(whereSeparator: \.isNewline).joined(separator: " ").trimmingCharacters(in: .whitespaces)
+                    let appName = NSRunningApplication.runningApplications(withBundleIdentifier: appID).first?.localizedName
+                        ?? owner?.localizedName
+                    let name = appName ?? (title.isEmpty ? "Window" : title)
+                    return Thumbnail(button: button, windowID: windowID, appID: appID.isEmpty ? name : appID,
+                                     name: name, title: title, frame: frame)
                 }
             }
         }

@@ -92,6 +92,7 @@ Labels come from app names, so they stay the same when windows move:
 ### Mission Control picker
 
 Press Hyper + Return to open Mission Control with a label on each window preview.
+The app name and window title appear above the label.
 Type a label to focus its window. Labels stay visible when you hover over a preview.
 Press Escape or the hotkey again to close Mission Control and its labels.
 If Mission Control is already open, Hyper + K also labels its previews.
@@ -182,7 +183,7 @@ X  C  V
 
 - **S, F, E, C** attach the window to the left, right, top, or bottom edge. Repeat the key to cycle through half, two-thirds, and one-third.
 - **W, R, X, V** use the four corners. Each corner takes one quarter of the usable display area.
-- **D** switches between a centered half and the full usable display area. The window stays in its current Space.
+- **D** cycles through the full usable display, a centered half, and a centered third. The window stays in its current Space.
 - **G** moves the window to the next display and keeps its relative size and position.
 
 Change or clear shortcuts in **Settings → Window management**.

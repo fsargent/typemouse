@@ -78,6 +78,13 @@ final class SettingsModel: ObservableObject {
         case mode(Mode, Int)
         case command(WindowCommand)
 
+        var feature: Config.Mode {
+            switch self {
+            case .mode(let mode, _): return mode.feature
+            case .command: return .windowManagement
+            }
+        }
+
         var title: String {
             switch self {
             case .mode(let mode, _): return mode.rawValue
@@ -119,7 +126,8 @@ final class SettingsModel: ObservableObject {
 
     /// Another slot (in any mode) with the same key combination, if any.
     func conflict(_ slot: Slot) -> Slot? {
-        guard let string = hotkey(slot), let mine = HotkeySpec(string) else { return nil }
+        guard config.isModeEnabled(slot.feature),
+              let string = hotkey(slot), let mine = HotkeySpec(string) else { return nil }
         let modes = Mode.allCases.filter { config.isModeEnabled($0.feature) }.flatMap { mode in
             hotkeys(mode).indices.map { Slot.mode(mode, $0) }
         }
@@ -422,7 +430,7 @@ struct SettingsView: View {
                     }
                 }
                 note("Edge shortcuts cycle through half, two-thirds, and one-third. Corner shortcuts resize to a quarter.")
-                note("Center switches between a centered half and the full usable display area.")
+                note("Center cycles through the full usable display, a centered half, and a centered third.")
             }
             Section("Displays") {
                 LabeledContent(WindowCommand.nextDisplay.title) { slotView(.command(.nextDisplay)) }

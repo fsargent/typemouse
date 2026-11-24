@@ -42,7 +42,7 @@ public enum WindowCommand: String, CaseIterable {
         case .top: tiles = widths.map { CGRect(x: 0, y: 0, width: 1, height: $0) }
         case .topRight: tiles = [CGRect(x: 0.5, y: 0, width: 0.5, height: 0.5)]
         case .left: tiles = widths.map { CGRect(x: 0, y: 0, width: $0, height: 1) }
-        case .center: tiles = [CGRect(x: 0.25, y: 0, width: 0.5, height: 1), CGRect(x: 0, y: 0, width: 1, height: 1)]
+        case .center: tiles = [1.0, 0.5, 1.0 / 3].map { CGRect(x: (1 - $0) / 2, y: 0, width: $0, height: 1) }
         case .right: tiles = widths.map { CGRect(x: 1 - $0, y: 0, width: $0, height: 1) }
         case .bottomLeft: tiles = [CGRect(x: 0, y: 0.5, width: 0.5, height: 0.5)]
         case .bottom: tiles = widths.map { CGRect(x: 0, y: 1 - $0, width: 1, height: $0) }

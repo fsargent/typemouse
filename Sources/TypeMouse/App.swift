@@ -7,6 +7,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let hotkeys = HotkeyManager()
     private let hyperKey = HyperKey()
     private let tiler = WindowTiler()
+    private var recordingHotkey = false
     private var modeShortcuts: [(spec: HotkeySpec, action: () -> Void)] = []
     private var windowShortcuts: [(spec: HotkeySpec, command: WindowCommand)] = []
     private var config = ConfigStore.load()
@@ -22,10 +23,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var modeMenuItems: [(NSMenuItem, String, Config.Mode, KeyPath<Config.Hotkeys, [String]>)] = []
     private lazy var settings = SettingsWindowController(
         config: config,
-        save: { ConfigStore.save($0) },
+        save: { [weak self] next in
+            if ConfigStore.save(next) { self?.applyConfig(next) }
+        },
         recording: { [weak self] on in
-            // While a field records, release our hotkeys so the keys reach the settings window.
-            if on { self?.hotkeys.unregisterAll() } else { self?.registerHotkeys() }
+            self?.recordingHotkey = on
+            self?.registerHotkeys()
         })
 
     /// Puts Caps Lock back.
@@ -96,6 +99,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func registerHotkeys() {
         hotkeys.unregisterAll()
+        modeShortcuts = []
+        windowShortcuts = []
+        // While a field records, let the keys reach the settings window.
+        guard !recordingHotkey else { return }
         let pairs: [(Config.Mode, String, [String], () -> Void)] = [
             (.click, "click", config.hotkeys.click, { [weak self] in self?.toggleHints(search: false) }),
             (.search, "search", config.hotkeys.search, { [weak self] in self?.toggleHints(search: true) }),
@@ -104,7 +111,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             (.missionControl, "mission control picker", config.hotkeys.missionControl, { [weak self] in self?.togglePicker(missionControl: true) }),
             (.grid, "grid", config.hotkeys.grid, { [weak self] in self?.toggleGrid() }),
         ]
-        modeShortcuts = []
         for (mode, name, strings, action) in pairs where config.isModeEnabled(mode) {
             for string in strings {
                 guard let spec = HotkeySpec(string) else { Log.info("bad hotkey \"\(string)\""); continue }
@@ -117,7 +123,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 if registered { modeShortcuts.append((spec, action)) }
             }
         }
-        windowShortcuts = []
         guard config.isModeEnabled(.windowManagement) else { return }
         windowShortcuts = WindowCommand.allCases.compactMap { command in
             guard let spec = HotkeySpec(config.hotkeys.shortcut(for: command)),
@@ -295,25 +300,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Config hot reload
 
+    private func applyConfig(_ next: Config) {
+        guard next != config else { return }
+        let accessibilityAppsChanged = next.enhancedUserInterfaceApps != config.enhancedUserInterfaceApps
+        Log.info("config reloaded")
+        config = next
+        hints.update(config: next)
+        windows.update(config: next)
+        picker.update(config: next)
+        grid.update(config: next)
+        if capture.isStarted { hyperKey.setEnabled(next.capsLockToHyper) }
+        settings.update(config: next)
+        registerHotkeys()
+        if accessibilityAppsChanged { AccessibilityActivator.activateAll(enhancedApps: next.enhancedUserInterfaceApps) }
+    }
+
     private func watchConfig() {
         let fd = open(ConfigStore.url.deletingLastPathComponent().path, O_EVTONLY)
         guard fd >= 0 else { return }
         let src = DispatchSource.makeFileSystemObjectSource(fileDescriptor: fd, eventMask: [.write, .rename], queue: .main)
-        src.setEventHandler { [weak self] in
-            guard let self else { return }
-            let next = ConfigStore.load()
-            guard next != self.config else { return }
-            Log.info("config reloaded")
-            self.config = next
-            self.hints.update(config: next)
-            self.windows.update(config: next)
-            self.picker.update(config: next)
-            self.grid.update(config: next)
-            if self.capture.isStarted { self.hyperKey.setEnabled(next.capsLockToHyper) }
-            self.settings.update(config: next)
-            self.registerHotkeys()
-            AccessibilityActivator.activateAll(enhancedApps: next.enhancedUserInterfaceApps)
-        }
+        src.setEventHandler { [weak self] in self?.applyConfig(ConfigStore.load()) }
         src.setCancelHandler { close(fd) }
         src.resume()
         configWatcher = src
@@ -324,12 +330,14 @@ enum ConfigStore {
     static let url = FileManager.default.homeDirectoryForCurrentUser
         .appendingPathComponent(".config/typemouse/config.json")
 
-    /// The file watcher picks up the change and applies it.
-    static func save(_ config: Config) {
+    @discardableResult
+    static func save(_ config: Config) -> Bool {
         do {
             try config.encoded().write(to: url, options: .atomic)
+            return true
         } catch {
             Log.info("config save failed: \(error)")
+            return false
         }
     }
 
