@@ -2,8 +2,7 @@
 
 # TypeMouse
 
-Type instead of using the mouse. TypeMouse lets you click and switch windows on macOS with only the keyboard.
-It is a personal replacement for [Homerow](https://www.homerow.app), with a separate window mode.
+TypeMouse brings the keyboard workflow of a tiling window manager to macOS while keeping the flexibility of regular windows.
 
 ## Install
 
@@ -26,6 +25,19 @@ Use Homebrew for version 0.1.0.
 1. Download and unzip `TypeMouse-<version>.zip`.
 2. Move `TypeMouse.app` to `/Applications` or `~/Applications`.
 3. Open TypeMouse and grant Accessibility permission when macOS asks.
+
+## Why TypeMouse
+
+I wanted to keep my hands on the keyboard through a whole task.
+I used Spectacle and later Raycast to arrange windows, and other tools to switch windows, click, or move the pointer.
+TypeMouse brings those jobs together, with ideas from Witch, Homerow, Vimium, Vimium C, and grid-based pointer tools.
+
+With the default Hyper shortcuts, your left hand arranges windows.
+Use your right hand to switch windows, show click labels, or start the pointer grid.
+The window layout and pointer grid use three columns of keys, one each for your index, middle, and ring fingers.
+The position of each key matches a position on the screen.
+
+My experience with custom and ergonomic keyboards shaped the layout. The defaults work on a standard keyboard, and you can change the shortcuts in Settings.
 
 ## Modes
 
