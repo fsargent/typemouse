@@ -219,6 +219,7 @@ struct SettingsView: View {
                     ForEach(SettingsModel.Mode.allCases) { mode in sidebarRow(.mode(mode)) }
                     sidebarRow(.scroll)
                 }
+                .collapsible(false)
             }
             .listStyle(.sidebar)
             .navigationSplitViewColumnWidth(min: 170, ideal: 185, max: 220)
