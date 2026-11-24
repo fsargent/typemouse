@@ -139,7 +139,7 @@ final class ScrollingTests: XCTestCase {
     func testNewSettingsKeepOldConfigCompatible() throws {
         let old = try Config.decode(Data(#"{"hotkeys":{"click":"hyper+j"}}"#.utf8))
         XCTAssertEqual(old.hotkeys.grid, ["hyper+h"])
-        XCTAssertEqual(old.scrollKeys, .vim)
+        XCTAssertEqual(old.scrollKeys, .wasd)
         XCTAssertEqual(old.scrollSpeed, 600)
         XCTAssertEqual(old.gridHand, .right)
         let custom = try Config.decode(Data(#"{"hotkeys":{"grid":["hyper+g","hyper+h"]},"gridHand":"left","scrollKeys":"esdf","scrollSpeed":1250}"#.utf8))

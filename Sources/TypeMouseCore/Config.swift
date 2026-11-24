@@ -24,8 +24,8 @@ public struct Config: Codable, Equatable {
         /// No default: search is also one key away inside click mode (/ or Tab).
         public var search: [String] = []
         public var window = ["hyper+l"]
-        public var picker = ["hyper+k"]
-        public var missionControl = ["hyper+return"]
+        public var picker: [String] = []
+        public var missionControl = ["hyper+k"]
         public var grid = ["hyper+h"]
         public var scroll = ["hyper+u"]
         /// Per-command overrides. An empty string clears the command's default hotkey.
@@ -42,10 +42,15 @@ public struct Config: Codable, Equatable {
             search = try Self.decode(c, .search) ?? d.search
             window = try Self.decode(c, .window) ?? d.window
             picker = try Self.decode(c, .picker) ?? d.picker
-            missionControl = try Self.decode(c, .missionControl) ?? d.missionControl
             grid = try Self.decode(c, .grid) ?? d.grid
             scroll = try Self.decode(c, .scroll) ?? d.scroll
             windowManagement = try c.decodeIfPresent([String: String].self, forKey: .windowManagement) ?? [:]
+            let otherBindings = [click, search, window, picker, grid, scroll, Array(windowManagement.values)].joined()
+            let usesHyperK = otherBindings.compactMap(HotkeySpec.init).contains {
+                $0.modifiers == .hyper && $0.keyCode == HotkeySpec.keyCodes["k"]
+            }
+            // Keep the previous Mission Control shortcut when a config already assigns Hyper K.
+            missionControl = try Self.decode(c, .missionControl) ?? (usesHyperK ? ["hyper+return"] : d.missionControl)
         }
 
         public func encode(to encoder: Encoder) throws {
@@ -116,7 +121,7 @@ public struct Config: Codable, Equatable {
     public var chainDelayMs = 250
     public var labelFontSize: Double = 12
     public var gridHand: GridNavigation.Hand = .right
-    public var scrollKeys: ScrollKeys = .vim
+    public var scrollKeys: ScrollKeys = .wasd
     /// Scroll distance in points per second. Shift multiplies this by three.
     public var scrollSpeed = 600
 
