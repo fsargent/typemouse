@@ -92,7 +92,7 @@ Labels come from app names, so they stay the same when windows move:
 
 ### Mission Control picker
 
-Press Hyper + Return to open Mission Control with a label on each window preview.
+Press Hyper + Return to open Mission Control and label the window previews on each display's current Space.
 The app name and window title appear above the label.
 Type a label to focus its window. Labels stay visible when you hover over a preview.
 Press Escape or the hotkey again to close Mission Control and its labels.

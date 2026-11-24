@@ -82,9 +82,14 @@ final class MissionControlPicker {
         guard !hits.isEmpty else { NSSound.beep(); return }
         if hits.count == 1, labels[hits[0]] == next {
             let thumbnail = thumbnails[hits[0]]
-            if thumbnail.button.perform(kAXPressAction) == .success {
+            let current = Self.snapshot()
+            guard let selected = current?.first(where: { $0.identity == thumbnail.identity }) else {
+                refresh(current)
+                return
+            }
+            if selected.button.perform(kAXPressAction) == .success {
                 exit(closeOverview: false)
-                finishSelection(thumbnail)
+                finishSelection(selected)
             } else {
                 NSSound.beep()
                 refresh(Self.snapshot())
@@ -98,8 +103,20 @@ final class MissionControlPicker {
     private func refresh(_ snapshot: [Thumbnail]?) {
         guard isActive else { return }
         let age = ProcessInfo.processInfo.systemUptime - launchedAt
-        guard let snapshot, !snapshot.isEmpty else {
-            if (rendered && snapshot == nil) || age > 1.5 { exit(closeOverview: !rendered) }
+        guard let snapshot else {
+            if rendered || age > 1.5 { exit(closeOverview: !rendered) }
+            return
+        }
+        guard !snapshot.isEmpty else {
+            if rendered {
+                overlay.hide()
+                thumbnails = []
+                labels = []
+                typed = ""
+                previousFrames = [:]
+            } else if age > 1.5 {
+                exit()
+            }
             return
         }
 
@@ -176,9 +193,15 @@ final class MissionControlPicker {
             let root = children.first { $0.string("AXIdentifier") == "mc" }
             let displays = (root?.elements(kAXChildrenAttribute) ?? children).filter { $0.string("AXIdentifier") == "mc.display" }
             guard !displays.isEmpty else { continue }
-            let windows = host == "com.apple.dock"
-                ? CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []
-                : []
+            // WindowManager exposes buttons for other Spaces under the same display.
+            // Quartz gives us the current Spaces across all displays, including covered windows.
+            let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements],
+                                                     kCGNullWindowID) as? [[String: Any]] ?? []
+            let onScreen = Dictionary(windows.compactMap { window -> (CGWindowID, pid_t)? in
+                guard let id = window[kCGWindowNumber as String] as? CGWindowID,
+                      let pid = window[kCGWindowOwnerPID as String] as? pid_t else { return nil }
+                return (id, pid)
+            }, uniquingKeysWith: { first, _ in first })
             return displays.flatMap { display in
                 let children = display.elements(kAXChildrenAttribute)
                 let group = children.first { $0.string("AXIdentifier") == "mc.windows" }
@@ -191,9 +214,9 @@ final class MissionControlPicker {
                     let identifier = values["AXIdentifier"] as? String ?? ""
                     guard !identifier.hasPrefix("mc.") else { return nil }
                     let windowID = (values["wid"] as? NSNumber)?.uint32Value
-                    let owner = windowID.flatMap { id in
-                        windows.first { $0[kCGWindowNumber as String] as? CGWindowID == id }?[kCGWindowOwnerPID as String] as? pid_t
-                    }.flatMap { NSRunningApplication(processIdentifier: $0) }
+                    let ownerPID = windowID.flatMap { onScreen[$0] }
+                    if host == "com.apple.WindowManager", ownerPID == nil { return nil }
+                    let owner = ownerPID.flatMap { NSRunningApplication(processIdentifier: $0) }
                     let bundle = identifier.range(of: ".space.", options: .backwards).map { String(identifier[..<$0.lowerBound]) }
                     let appID = bundle ?? owner?.bundleIdentifier ?? identifier
                     let title = (values[kAXTitleAttribute] as? String ?? "")
