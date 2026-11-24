@@ -113,7 +113,7 @@ Window mode uses the same labels as the window picker. The list shows on every m
 | Command (⌘) + `Q` | Quit the highlighted window's app |
 | `Esc` | Exit |
 
-To give an app a fixed letter, open **Settings → Window list** and click **Pin an app…**.
+To give an app a fixed letter, open **Settings → Window selection** and click **Pin an app…**.
 Use the letter menu to change the pin, or click **×** to remove it.
 A pinned app that is not running shows a "launch" row.
 
@@ -192,6 +192,8 @@ Change or clear shortcuts in **Settings → Window management**.
 Open **Settings…** from the menu-bar icon, or open TypeMouse again while it runs.
 
 Select a mode in the sidebar to see what it does, how to open it, and what you can change.
+Use the switch at the top of each mode page to enable or disable it. The switch keeps its saved hotkeys.
+**Click mode** includes Search. **Window selection** includes Window list, Window picker, and Mission Control picker.
 For example, **Click mode** has label size and chain click settings. **Scroll mode** has the key layout and speed.
 Use **General** for Caps Lock as Hyper, launch at login, shared hint characters, and access to the config file.
 
@@ -230,6 +232,7 @@ TypeMouse writes the defaults on first launch. Every key is optional.
 ```json
 {
   "hintCharacters": "fjdkslaghrueiwotyvmcxbn",
+  "disabledModes": [],
   "hotkeys": { "click": "hyper+j", "picker": "hyper+k", "missionControl": "hyper+return", "window": "hyper+l", "grid": "hyper+h", "search": [] },
   "windowPins": { "c": "com.google.Chrome", "s": "com.tinyspeck.slackmacgap", "t": "com.mitchellh.ghostty" },
   "clickStrategy": { "com.example.app": "mouse" },
@@ -251,6 +254,9 @@ TypeMouse writes the defaults on first launch. Every key is optional.
   `hyper` means all four. `meh` means Control, Option, and Shift.
 - A mode takes one hotkey or a list, for example `"search": ["hyper+o", "hyper+backspace"]`.
 - `[]` or `""` means no hotkey. A missing key uses the default.
+- `disabledModes`: choose from `click`, `search`, `windowSelection`, `windowList`, `windowPicker`, `missionControl`, `grid`, `scroll`, and `windowManagement`.
+  Disabling Click mode also disables Search. Disabling Window selection disables all three window selectors.
+  Scroll mode requires Grid mode.
 - `hotkeys.windowManagement` overrides individual window shortcuts. For example, `{"center":"ctrl+opt+d","nextDisplay":""}` changes Center and clears Move to next display.
 - `gridHand`: `left` or `right` (default). Sets the keys for one display and for refinements.
 - `scrollKeys`: `vim` (default), `esdf`, `wasd`, or `ijkl`. Arrow keys always work.

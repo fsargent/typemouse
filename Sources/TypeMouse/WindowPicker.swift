@@ -21,6 +21,7 @@ final class WindowPicker {
 
     private let overlay = Overlay()
     private let overview: MissionControlPicker
+    private var usesPickerShortcut = false
     private let capture: KeyCapture
     private var config: Config
 
@@ -34,14 +35,19 @@ final class WindowPicker {
     func update(config: Config) {
         self.config = config
         overview.update(config: config)
+        if (usesPickerShortcut && !config.isModeEnabled(.windowPicker))
+            || (overview.isActive && !config.isModeEnabled(.missionControl)) { exit() }
     }
 
     func start(missionControl: Bool = false) {
         let thumbnails = MissionControlPicker.snapshot()
         if missionControl || thumbnails != nil {
+            guard config.isModeEnabled(.missionControl) else { return }
+            usesPickerShortcut = !missionControl
             overview.start(openOverview: missionControl, snapshot: thumbnails)
             return
         }
+        usesPickerShortcut = true
         capture.setActive(true)
         desktopActive = true
         typed = ""

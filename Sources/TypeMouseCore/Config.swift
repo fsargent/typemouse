@@ -3,6 +3,19 @@ import Foundation
 /// User configuration, read from ~/.config/typemouse/config.json.
 /// Every key is optional. Missing keys keep their defaults.
 public struct Config: Codable, Equatable {
+    public enum Mode: String, CaseIterable {
+        case click, search, windowSelection, windowList, windowPicker, missionControl, grid, scroll, windowManagement
+
+        var parent: Mode? {
+            switch self {
+            case .search: return .click
+            case .windowList, .windowPicker, .missionControl: return .windowSelection
+            case .scroll: return .grid
+            default: return nil
+            }
+        }
+    }
+
     /// Each mode can have several hotkeys. In the file, a mode takes one string ("hyper+k"),
     /// a list (["hyper+k", "hyper+backspace"]), or [] / "" for no hotkey.
     /// A missing key keeps the default.
@@ -77,6 +90,8 @@ public struct Config: Codable, Equatable {
     public static let defaultHintCharacters = "fjdkslaghrueiwotyvmcxbn"
     public var hintCharacters = Config.defaultHintCharacters
     public var hotkeys = Hotkeys()
+    /// Mode switches are separate from shortcuts so disabling a mode keeps its bindings.
+    public var disabledModes: [String] = []
     /// Window mode: letter -> bundle identifier, for example {"s": "com.tinyspeck.slackmacgap"}.
     public var windowPins: [String: String] = [:]
     /// Bundle identifier -> click strategy. Apps not listed use `auto`.
@@ -121,6 +136,7 @@ public struct Config: Codable, Equatable {
         let d = Config()
         hintCharacters = try c.decodeIfPresent(String.self, forKey: .hintCharacters) ?? d.hintCharacters
         hotkeys = try c.decodeIfPresent(Hotkeys.self, forKey: .hotkeys) ?? d.hotkeys
+        disabledModes = try c.decodeIfPresent([String].self, forKey: .disabledModes) ?? d.disabledModes
         windowPins = try c.decodeIfPresent([String: String].self, forKey: .windowPins) ?? d.windowPins
         clickStrategy = try c.decodeIfPresent([String: ClickStrategy].self, forKey: .clickStrategy) ?? d.clickStrategy
         restoreMousePosition = try c.decodeIfPresent(Bool.self, forKey: .restoreMousePosition) ?? d.restoreMousePosition
@@ -137,6 +153,15 @@ public struct Config: Codable, Equatable {
     }
 
     public var hintAlphabet: [Character] { Hints.unique(Array(hintCharacters.lowercased())) }
+
+    public func isModeEnabled(_ mode: Mode) -> Bool {
+        !disabledModes.contains(mode.rawValue) && (mode.parent.map { isModeEnabled($0) } ?? true)
+    }
+
+    public mutating func setModeEnabled(_ mode: Mode, _ enabled: Bool) {
+        disabledModes.removeAll { $0 == mode.rawValue }
+        if !enabled { disabledModes.append(mode.rawValue) }
+    }
 
     public var pins: [Character: String] {
         var out: [Character: String] = [:]

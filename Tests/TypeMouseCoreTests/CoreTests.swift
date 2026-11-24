@@ -103,6 +103,28 @@ final class GeometryTests: XCTestCase {
 }
 
 final class HotkeyAndConfigTests: XCTestCase {
+    func testDisablingModesKeepsTheirBindingsAndChildPreferences() throws {
+        var config = try Config.decode(Data(#"{"hotkeys":{"window":"hyper+t","search":"hyper+o"}}"#.utf8))
+        XCTAssertTrue(Config.Mode.allCases.allSatisfy(config.isModeEnabled))
+        config.setModeEnabled(.windowPicker, false)
+        config.setModeEnabled(.windowSelection, false)
+        config.setModeEnabled(.click, false)
+        config.setModeEnabled(.grid, false)
+        XCTAssertFalse(config.isModeEnabled(.windowList))
+        XCTAssertFalse(config.isModeEnabled(.missionControl))
+        XCTAssertFalse(config.isModeEnabled(.search))
+        XCTAssertFalse(config.isModeEnabled(.scroll))
+        XCTAssertTrue(config.isModeEnabled(.windowManagement))
+        XCTAssertEqual(try Config.decode(config.encoded()), config)
+
+        config.setModeEnabled(.windowSelection, true)
+        config.setModeEnabled(.click, true)
+        XCTAssertTrue(config.isModeEnabled(.windowList))
+        XCTAssertFalse(config.isModeEnabled(.windowPicker))
+        XCTAssertTrue(config.isModeEnabled(.search))
+        XCTAssertEqual(config.hotkeys.window, ["hyper+t"])
+        XCTAssertEqual(config.hotkeys.search, ["hyper+o"])
+    }
     func testMissionControlHotkeyKeepsDefaultAndCanBeCleared() throws {
         let defaults = try Config.decode(Data(#"{"hotkeys":{"picker":"hyper+k"}}"#.utf8))
         XCTAssertEqual(defaults.hotkeys.missionControl, ["hyper+return"])

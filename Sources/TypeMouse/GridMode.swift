@@ -43,6 +43,10 @@ final class GridMode {
     func update(config: Config) {
         stopScrolling()
         self.config = config
+        if !config.isModeEnabled(isScrolling ? .scroll : .grid) {
+            exit(movePointer: false)
+            return
+        }
         navigation?.preferredHand = config.gridHand
         if isActive { render() }
     }
@@ -98,6 +102,7 @@ final class GridMode {
             exit(movePointer: false)
             Actuator.mouseClick(at: point, restore: false)
         case .enter:
+            guard config.isModeEnabled(.scroll) else { return }
             let target = navigation?.point
             guard let point = target ?? pointerLocation else { return }
             scrollPoint = point
@@ -189,8 +194,9 @@ final class GridMode {
         }
         let extra = navigation.hasMoreScreens ? " · Tab: screens" : ""
         let escape = navigation.point == nil ? "Esc: exit" : "Esc: move"
+        let scroll = config.isModeEnabled(.scroll) ? " · Enter: scroll" : ""
         overlay.render(labels,
-                       banner: "Grid · \(escape) · Space: click · Enter: scroll · Backspace: undo\(extra)",
+                       banner: "Grid · \(escape) · Space: click\(scroll) · Backspace: undo\(extra)",
                        bannerPoint: navigation.point ?? pointerLocation)
     }
 }

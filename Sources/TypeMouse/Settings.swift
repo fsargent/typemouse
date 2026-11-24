@@ -26,7 +26,8 @@ final class SettingsWindowController {
             let w = NSWindow(contentViewController: NSHostingController(rootView: SettingsView(model: model)))
             w.title = "TypeMouse Settings"
             w.styleMask = [.titled, .closable, .resizable]
-            w.setContentSize(NSSize(width: 760, height: 590))
+            w.backgroundColor = .textBackgroundColor
+            w.setContentSize(NSSize(width: 810, height: 610))
             w.isReleasedWhenClosed = false
             w.center()
             NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification, object: w, queue: .main) { [weak self] _ in
@@ -49,6 +50,17 @@ final class SettingsModel: ObservableObject {
         case grid = "Grid mode"
 
         var id: String { rawValue }
+
+        var feature: Config.Mode {
+            switch self {
+            case .click: return .click
+            case .search: return .search
+            case .window: return .windowList
+            case .picker: return .windowPicker
+            case .missionControl: return .missionControl
+            case .grid: return .grid
+            }
+        }
 
         var keyPath: WritableKeyPath<Config.Hotkeys, [String]> {
             switch self {
@@ -108,10 +120,10 @@ final class SettingsModel: ObservableObject {
     /// Another slot (in any mode) with the same key combination, if any.
     func conflict(_ slot: Slot) -> Slot? {
         guard let string = hotkey(slot), let mine = HotkeySpec(string) else { return nil }
-        let modes = Mode.allCases.flatMap { mode in
+        let modes = Mode.allCases.filter { config.isModeEnabled($0.feature) }.flatMap { mode in
             hotkeys(mode).indices.map { Slot.mode(mode, $0) }
         }
-        let commands = WindowCommand.allCases.map { Slot.command($0) }
+        let commands = config.isModeEnabled(.windowManagement) ? WindowCommand.allCases.map { Slot.command($0) } : []
         return (modes + commands).first { other in
             guard other != slot, let theirs = hotkey(other).flatMap(HotkeySpec.init) else { return false }
             return theirs.keyCode == mine.keyCode && theirs.modifiers == mine.modifiers
@@ -185,30 +197,31 @@ final class SettingsModel: ObservableObject {
 }
 
 struct SettingsView: View {
-    private enum Page: Hashable {
-        case general
-        case mode(SettingsModel.Mode)
-        case scroll
-        case windowManagement
+    private enum Page: String, CaseIterable {
+        case general = "General"
+        case click = "Click mode"
+        case windowSelection = "Window selection"
+        case grid = "Grid mode"
+        case scroll = "Scroll mode"
+        case windowManagement = "Window management"
 
-        var title: String {
+        var mode: Config.Mode? {
             switch self {
-            case .general: return "General"
-            case .mode(let mode): return mode.rawValue
-            case .scroll: return "Scroll mode"
-            case .windowManagement: return "Window management"
+            case .general: return nil
+            case .click: return .click
+            case .windowSelection: return .windowSelection
+            case .grid: return .grid
+            case .scroll: return .scroll
+            case .windowManagement: return .windowManagement
             }
         }
 
         var icon: String {
             switch self {
             case .general: return "gearshape"
-            case .mode(.click): return "cursorarrow.click"
-            case .mode(.search): return "magnifyingglass"
-            case .mode(.window): return "list.bullet"
-            case .mode(.picker): return "macwindow"
-            case .mode(.missionControl): return "rectangle.3.group"
-            case .mode(.grid): return "square.grid.3x3"
+            case .click: return "cursorarrow.click"
+            case .windowSelection: return "macwindow"
+            case .grid: return "square.grid.3x3"
             case .scroll: return "arrow.up.and.down"
             case .windowManagement: return "rectangle.split.2x2"
             }
@@ -218,17 +231,11 @@ struct SettingsView: View {
             switch self {
             case .general:
                 return "Set up your Hyper key, launch options, and shared label characters."
-            case .mode(.click):
+            case .click:
                 return "Show a label on each clickable item. Type its label to click it."
-            case .mode(.search):
-                return "Find clickable items by text. Press Enter to click the highlighted match."
-            case .mode(.window):
-                return "Show a list of windows on every display. Type a label or highlight a row and press Enter."
-            case .mode(.picker):
-                return "Show a label on each visible window. Type its label to focus that window."
-            case .mode(.missionControl):
-                return "Open Mission Control and label its window previews. Type a label to focus that window."
-            case .mode(.grid):
+            case .windowSelection:
+                return "Switch windows from a list, the desktop, or Mission Control."
+            case .grid:
                 return "Select cells in a 3×3 grid to position the pointer. Each key narrows the target."
             case .scroll:
                 return "Press Enter in grid mode to scroll at the selected point or the current pointer position."
@@ -249,39 +256,54 @@ struct SettingsView: View {
             List(selection: $selection) {
                 sidebarRow(.general)
                 Section("Modes") {
-                    ForEach(SettingsModel.Mode.allCases) { mode in sidebarRow(.mode(mode)) }
-                    sidebarRow(.scroll)
-                    sidebarRow(.windowManagement)
+                    ForEach(Page.allCases.filter { $0 != .general }, id: \.self) { page in
+                        sidebarRow(page)
+                    }
                 }
                 .collapsible(false)
             }
             .listStyle(.sidebar)
-            .navigationSplitViewColumnWidth(min: 170, ideal: 185, max: 220)
+            .navigationSplitViewColumnWidth(min: 220, ideal: 230, max: 270)
         } detail: {
             Form {
                 Section {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text(page.title)
+                        Label(page.rawValue, systemImage: page.icon)
                             .font(.title2.weight(.semibold))
                             .accessibilityAddTraits(.isHeader)
                         Text(page.introduction)
+                            .foregroundStyle(.secondary)
                     }
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    if let mode = page.mode {
+                        modeToggle("Enable " + page.rawValue.lowercased(), mode)
+                    }
+                    if page == .scroll && !model.config.isModeEnabled(.grid) {
+                        note("Enable Grid mode to enter Scroll mode.")
+                    }
                 }
                 pageSections(page)
+                    .disabled(page.mode.map { !model.config.isModeEnabled($0) } ?? false)
             }
             .formStyle(.grouped)
+            .scrollContentBackground(.hidden)
+            .background(Color(nsColor: .textBackgroundColor), ignoresSafeAreaEdges: [])
             .id(page)
         }
-        .frame(minWidth: 680, minHeight: 490)
+        .frame(minWidth: 720, minHeight: 490)
         .onAppear { hintCharacters = model.config.hintCharacters }
         .onChange(of: model.config.hintCharacters) { _, new in hintCharacters = new }
         .onChange(of: selection) { _, _ in model.stopRecording() }
     }
 
     private func sidebarRow(_ page: Page) -> some View {
-        Label(page.title, systemImage: page.icon).tag(page)
+        Label {
+            Text(page.rawValue).foregroundStyle(Color(nsColor: .labelColor))
+        } icon: {
+            Image(systemName: page.icon).foregroundStyle(Color(nsColor: .secondaryLabelColor))
+        }
+        .tag(page)
     }
 
     @ViewBuilder
@@ -289,46 +311,36 @@ struct SettingsView: View {
         switch page {
         case .general:
             generalSections
-        case .mode(let mode):
-            shortcutSection(mode)
-            switch mode {
-            case .click:
-                clickSections
-            case .search:
-                Section("From click mode") {
+        case .click:
+            shortcutSection(.click)
+            clickSections
+            Section("Search") {
+                modeToggle("Enable search", .search)
+                Group {
+                    note("Find clickable items by text. Press Enter to click the highlighted match.")
                     note("Press Slash (/) or Tab in click mode to start a search. Press Backspace on an empty search to return to labels.")
+                    shortcutControls(.search)
                 }
-            case .window:
-                Section("Choose a window") {
-                    note("Press Tab or the hotkey again to highlight the next window. Press Slash (/) to search by app or window title.")
-                }
-                PinnedAppsSettings(model: model)
-            case .picker:
-                Section("After selection") {
-                    Toggle("Start click mode after focusing the window", isOn: setting(\.clickAfterPicker))
-                }
-            case .missionControl:
-                Section("Choose a window") {
-                    note("Labels stay on the previews as you move the pointer. Press Escape to close the picker and Mission Control.")
-                    Toggle("Start click mode after focusing the window", isOn: setting(\.clickAfterPicker))
-                    note("This setting also applies to the regular window picker.")
-                }
-            case .grid:
-                Section("Choose a point") {
-                    Picker("Preferred hand", selection: setting(\.gridHand)) {
-                        ForEach(GridNavigation.Hand.allCases, id: \.self) { hand in
-                            Text(hand.rawValue.capitalized).tag(hand)
-                        }
+                .disabled(!model.config.isModeEnabled(.search))
+            }
+        case .windowSelection:
+            windowSelectionSections
+        case .grid:
+            shortcutSection(.grid)
+            Section("Choose a point") {
+                Picker("Preferred hand", selection: setting(\.gridHand)) {
+                    ForEach(GridNavigation.Hand.allCases, id: \.self) { hand in
+                        Text(hand.rawValue.capitalized).tag(hand)
                     }
-                    note("Use your preferred hand on one display and to refine a selection. With two displays, the first grid keys match each display.")
-                    HStack(alignment: .top, spacing: 32) {
-                        gridKeys("Left hand", keys: "W E R\nS D F\nX C V")
-                        gridKeys("Right hand", keys: "U I O\nJ K L\nM , .")
-                    }
-                    note("Press Backspace to undo a selection. Press Escape to move to the selected point and exit. Press Space to click.")
-                    note("Without a selection, Space clicks at the current pointer position and Escape leaves the pointer in place.")
-                    Button("Scroll mode settings") { selection = .scroll }
                 }
+                note("Use your preferred hand on one display and to refine a selection. With two displays, the first grid keys match each display.")
+                HStack(alignment: .top, spacing: 32) {
+                    gridKeys("Left hand", keys: "W E R\nS D F\nX C V")
+                    gridKeys("Right hand", keys: "U I O\nJ K L\nM , .")
+                }
+                note("Press Backspace to undo a selection. Press Escape to move to the selected point and exit. Press Space to click.")
+                note("Without a selection, Space clicks at the current pointer position and Escape leaves the pointer in place.")
+                Button("Scroll mode settings") { selection = .scroll }
             }
         case .windowManagement:
             windowManagementSections
@@ -343,6 +355,53 @@ struct SettingsView: View {
                 note("Hold a direction key to scroll. Arrow keys work with every layout. Hold Shift for three times the speed. Press Escape to exit.")
             }
         }
+    }
+
+    private var windowSelectionSections: some View {
+        Group {
+            Section("Window list") {
+                modeToggle("Enable window list", .windowList)
+                Group {
+                    note("Show a list of windows on every display. Type a label or highlight a window and press Enter.")
+                    shortcutControls(.window)
+                }
+                .disabled(!model.config.isModeEnabled(.windowList))
+            }
+            Section("Window picker") {
+                modeToggle("Enable window picker", .windowPicker)
+                Group {
+                    note("Show a label on each visible window. Type its label to focus that window.")
+                    shortcutControls(.picker)
+                }
+                .disabled(!model.config.isModeEnabled(.windowPicker))
+            }
+            Section("Mission Control picker") {
+                modeToggle("Enable Mission Control picker", .missionControl)
+                Group {
+                    note("Open Mission Control and label its window previews. Type a label to focus that window.")
+                    shortcutControls(.missionControl)
+                }
+                .disabled(!model.config.isModeEnabled(.missionControl))
+            }
+            Section("After selection") {
+                Toggle("Start click mode after focusing a window", isOn: setting(\.clickAfterPicker))
+                    .disabled(!model.config.isModeEnabled(.click))
+                note("Both window pickers use this setting.")
+            }
+            PinnedAppsSettings(model: model)
+        }
+    }
+
+    private func modeToggle(_ title: String, _ mode: Config.Mode) -> some View {
+        Toggle(title, isOn: Binding(
+            get: { !model.config.disabledModes.contains(mode.rawValue) },
+            set: { enabled in
+                model.stopRecording()
+                model.config.setModeEnabled(mode, enabled)
+                model.commit()
+            }
+        ))
+        .toggleStyle(.switch)
     }
 
     private var windowManagementSections: some View {
@@ -461,29 +520,32 @@ struct SettingsView: View {
     }
 
     private func shortcutSection(_ mode: SettingsModel.Mode) -> some View {
-        Section("Shortcut") {
-            LabeledContent("Hotkeys") {
-                HStack {
-                    ForEach(0..<SettingsModel.slotsPerMode, id: \.self) { index in
-                        slotView(SettingsModel.Slot.mode(mode, index))
-                    }
-                    Button("Reset") { model.reset(mode) }
-                        .disabled(model.isDefault(mode))
-                        .help("Restore the default hotkeys")
+        Section("Shortcut") { shortcutControls(mode) }
+    }
+
+    @ViewBuilder
+    private func shortcutControls(_ mode: SettingsModel.Mode) -> some View {
+        LabeledContent("Hotkeys") {
+            HStack {
+                ForEach(0..<SettingsModel.slotsPerMode, id: \.self) { index in
+                    slotView(SettingsModel.Slot.mode(mode, index))
                 }
+                Button("Reset") { model.reset(mode) }
+                    .disabled(model.isDefault(mode))
+                    .help("Restore the default hotkeys")
             }
-            ForEach(0..<SettingsModel.slotsPerMode, id: \.self) { index in
-                let slot = SettingsModel.Slot.mode(mode, index)
-                if let other = model.conflict(slot), let hotkey = model.hotkey(slot) {
-                    Text("\(HotkeySpec(hotkey)?.displayString ?? hotkey) is also used by \(other.title).")
-                        .font(.caption).foregroundStyle(.red)
-                }
+        }
+        ForEach(0..<SettingsModel.slotsPerMode, id: \.self) { index in
+            let slot = SettingsModel.Slot.mode(mode, index)
+            if let other = model.conflict(slot), let hotkey = model.hotkey(slot) {
+                Text("\(HotkeySpec(hotkey)?.displayString ?? hotkey) is also used by \(other.title).")
+                    .font(.caption).foregroundStyle(.red)
             }
-            if case .mode(let activeMode, _) = model.recordingSlot, activeMode == mode {
-                note("Press the key combination. Press Escape to cancel.")
-            } else {
-                note("Click a hotkey to change it, or add a second one.")
-            }
+        }
+        if case .mode(let activeMode, _) = model.recordingSlot, activeMode == mode {
+            note("Press the key combination. Press Escape to cancel.")
+        } else {
+            note("Click a hotkey to change it, or add a second one.")
         }
     }
 

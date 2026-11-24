@@ -35,7 +35,10 @@ final class WindowMode {
         self.config = config
     }
 
-    func update(config: Config) { self.config = config }
+    func update(config: Config) {
+        self.config = config
+        if !config.isModeEnabled(.windowList) { exit() }
+    }
 
     func start() {
         capture.setActive(true)

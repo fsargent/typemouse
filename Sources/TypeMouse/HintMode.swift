@@ -27,10 +27,14 @@ final class HintMode {
         self.config = config
     }
 
-    func update(config: Config) { self.config = config }
+    func update(config: Config) {
+        self.config = config
+        if !config.isModeEnabled(phase == .search ? .search : .click) { exit("mode disabled") }
+    }
 
     /// - Parameter keepChain: true for the rescan after a chain click, so chain mode stays on.
     func start(search: Bool, keepChain: Bool = false) {
+        guard config.isModeEnabled(search ? .search : .click) else { return }
         if !keepChain { chainMode = config.chainModeByDefault }
         guard let app = NSWorkspace.shared.frontmostApplication else { return }
         // Swallow keys from now on. Keys typed during the scan queue up and apply after it.
@@ -141,6 +145,7 @@ final class HintMode {
     // MARK: - Search
 
     private func enterSearch() {
+        guard config.isModeEnabled(.search) else { return }
         phase = .search
         if !textResolved {
             ElementProvider.resolveText(&targets)
