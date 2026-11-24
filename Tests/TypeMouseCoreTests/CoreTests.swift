@@ -103,6 +103,13 @@ final class GeometryTests: XCTestCase {
 }
 
 final class HotkeyAndConfigTests: XCTestCase {
+    func testMissionControlHotkeyKeepsDefaultAndCanBeCleared() throws {
+        let defaults = try Config.decode(Data(#"{"hotkeys":{"picker":"hyper+k"}}"#.utf8))
+        XCTAssertEqual(defaults.hotkeys.missionControl, ["hyper+return"])
+        let cleared = try Config.decode(Data(#"{"hotkeys":{"missionControl":[]}}"#.utf8))
+        XCTAssertTrue(cleared.hotkeys.missionControl.isEmpty)
+        XCTAssertEqual(try Config.decode(cleared.encoded()), cleared)
+    }
     func testChangingAndRemovingWindowPinsPreservesOtherApps() throws {
         var config = try Config.decode(Data(#"{"windowPins":{"S":"com.example.slack","b":"com.example.browser"}}"#.utf8))
         XCTAssertFalse(config.availableWindowPinLetters.contains("s"))

@@ -17,9 +17,12 @@ struct LabelSpec {
 /// They never take focus, so the target app keeps its menus and popovers open.
 final class Overlay {
     private var windows: [(screen: NSScreen, window: NSWindow)] = []
+    private let windowLevel: NSWindow.Level
     var fontSize: CGFloat = 12
 
     static let level = NSWindow.Level(rawValue: NSWindow.Level.popUpMenu.rawValue + 1)
+
+    init(windowLevel: NSWindow.Level = Overlay.level) { self.windowLevel = windowLevel }
 
     func render(_ labels: [LabelSpec], banner: String? = nil, bannerPoint: CGPoint? = nil) {
         syncWindows()
@@ -74,7 +77,7 @@ final class Overlay {
             w.backgroundColor = .clear
             w.hasShadow = false
             w.ignoresMouseEvents = true
-            w.level = Self.level
+            w.level = windowLevel
             w.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
             w.animationBehavior = .none
             w.isReleasedWhenClosed = false

@@ -45,6 +45,7 @@ final class SettingsModel: ObservableObject {
         case search = "Search mode"
         case window = "Window list"
         case picker = "Window picker"
+        case missionControl = "Mission Control picker"
         case grid = "Grid mode"
 
         var id: String { rawValue }
@@ -55,15 +56,22 @@ final class SettingsModel: ObservableObject {
             case .search: return \.search
             case .window: return \.window
             case .picker: return \.picker
+            case .missionControl: return \.missionControl
             case .grid: return \.grid
             }
         }
     }
 
-    /// One hotkey of a mode. Index 0 is the main hotkey, index 1 the second one.
-    struct Slot: Equatable {
-        let mode: Mode
-        let index: Int
+    enum Slot: Equatable {
+        case mode(Mode, Int)
+        case command(WindowCommand)
+
+        var title: String {
+            switch self {
+            case .mode(let mode, _): return mode.rawValue
+            case .command(let command): return command.title
+            }
+        }
     }
 
     static let slotsPerMode = 2
@@ -85,8 +93,14 @@ final class SettingsModel: ObservableObject {
     func hotkeys(_ mode: Mode) -> [String] { config.hotkeys[keyPath: mode.keyPath] }
 
     func hotkey(_ slot: Slot) -> String? {
-        let list = hotkeys(slot.mode)
-        return list.indices.contains(slot.index) ? list[slot.index] : nil
+        switch slot {
+        case .mode(let mode, let index):
+            let list = hotkeys(mode)
+            return list.indices.contains(index) ? list[index] : nil
+        case .command(let command):
+            let value = config.hotkeys.shortcut(for: command)
+            return value.isEmpty ? nil : value
+        }
     }
 
     func isDefault(_ mode: Mode) -> Bool { hotkeys(mode) == Config.Hotkeys()[keyPath: mode.keyPath] }
@@ -94,14 +108,14 @@ final class SettingsModel: ObservableObject {
     /// Another slot (in any mode) with the same key combination, if any.
     func conflict(_ slot: Slot) -> Slot? {
         guard let string = hotkey(slot), let mine = HotkeySpec(string) else { return nil }
-        for mode in Mode.allCases {
-            for (i, other) in hotkeys(mode).enumerated() where Slot(mode: mode, index: i) != slot {
-                if let theirs = HotkeySpec(other), theirs.keyCode == mine.keyCode, theirs.modifiers == mine.modifiers {
-                    return Slot(mode: mode, index: i)
-                }
-            }
+        let modes = Mode.allCases.flatMap { mode in
+            hotkeys(mode).indices.map { Slot.mode(mode, $0) }
         }
-        return nil
+        let commands = WindowCommand.allCases.map { Slot.command($0) }
+        return (modes + commands).first { other in
+            guard other != slot, let theirs = hotkey(other).flatMap(HotkeySpec.init) else { return false }
+            return theirs.keyCode == mine.keyCode && theirs.modifiers == mine.modifiers
+        }
     }
 
     func record(_ slot: Slot) {
@@ -117,7 +131,12 @@ final class SettingsModel: ObservableObject {
     func remove(_ slot: Slot) {
         guard hotkey(slot) != nil else { return }
         stopRecording()
-        config.hotkeys[keyPath: slot.mode.keyPath].remove(at: slot.index)
+        switch slot {
+        case .mode(let mode, let index):
+            config.hotkeys[keyPath: mode.keyPath].remove(at: index)
+        case .command(let command):
+            config.hotkeys.windowManagement[command.rawValue] = ""
+        }
         commit()
     }
 
@@ -143,9 +162,14 @@ final class SettingsModel: ObservableObject {
             NSSound.beep()
             return
         }
-        var list = hotkeys(slot.mode)
-        if list.indices.contains(slot.index) { list[slot.index] = string } else { list.append(string) }
-        config.hotkeys[keyPath: slot.mode.keyPath] = list
+        switch slot {
+        case .mode(let mode, let index):
+            var list = hotkeys(mode)
+            if list.indices.contains(index) { list[index] = string } else { list.append(string) }
+            config.hotkeys[keyPath: mode.keyPath] = list
+        case .command(let command):
+            config.hotkeys.windowManagement[command.rawValue] = string
+        }
         stopRecording()
         commit()
     }
@@ -165,12 +189,14 @@ struct SettingsView: View {
         case general
         case mode(SettingsModel.Mode)
         case scroll
+        case windowManagement
 
         var title: String {
             switch self {
             case .general: return "General"
             case .mode(let mode): return mode.rawValue
             case .scroll: return "Scroll mode"
+            case .windowManagement: return "Window management"
             }
         }
 
@@ -181,8 +207,10 @@ struct SettingsView: View {
             case .mode(.search): return "magnifyingglass"
             case .mode(.window): return "list.bullet"
             case .mode(.picker): return "macwindow"
+            case .mode(.missionControl): return "rectangle.3.group"
             case .mode(.grid): return "square.grid.3x3"
             case .scroll: return "arrow.up.and.down"
+            case .windowManagement: return "rectangle.split.2x2"
             }
         }
 
@@ -198,10 +226,14 @@ struct SettingsView: View {
                 return "Show a list of windows on every display. Type a label or highlight a row and press Enter."
             case .mode(.picker):
                 return "Show a label on each visible window. Type its label to focus that window."
+            case .mode(.missionControl):
+                return "Open Mission Control and label its window previews. Type a label to focus that window."
             case .mode(.grid):
                 return "Select cells in a 3×3 grid to position the pointer. Each key narrows the target."
             case .scroll:
                 return "Press Enter in grid mode to scroll at the selected point or the current pointer position."
+            case .windowManagement:
+                return "Move and resize the focused window with shortcuts that match positions on the display."
             }
         }
     }
@@ -219,6 +251,7 @@ struct SettingsView: View {
                 Section("Modes") {
                     ForEach(SettingsModel.Mode.allCases) { mode in sidebarRow(.mode(mode)) }
                     sidebarRow(.scroll)
+                    sidebarRow(.windowManagement)
                 }
                 .collapsible(false)
             }
@@ -274,6 +307,12 @@ struct SettingsView: View {
                 Section("After selection") {
                     Toggle("Start click mode after focusing the window", isOn: setting(\.clickAfterPicker))
                 }
+            case .missionControl:
+                Section("Choose a window") {
+                    note("Labels stay on the previews as you move the pointer. Press Escape to close the picker and Mission Control.")
+                    Toggle("Start click mode after focusing the window", isOn: setting(\.clickAfterPicker))
+                    note("This setting also applies to the regular window picker.")
+                }
             case .grid:
                 Section("Choose a point") {
                     Picker("Preferred hand", selection: setting(\.gridHand)) {
@@ -291,6 +330,8 @@ struct SettingsView: View {
                     Button("Scroll mode settings") { selection = .scroll }
                 }
             }
+        case .windowManagement:
+            windowManagementSections
         case .scroll:
             Section("Controls") {
                 Picker("Scroll keys", selection: setting(\.scrollKeys)) {
@@ -300,6 +341,40 @@ struct SettingsView: View {
                 }
                 numberRow("Scroll speed", unit: "pt/s", range: 50...5000, step: 50, value: setting(\.scrollSpeed))
                 note("Hold a direction key to scroll. Arrow keys work with every layout. Hold Shift for three times the speed. Press Escape to exit.")
+            }
+        }
+    }
+
+    private var windowManagementSections: some View {
+        Group {
+            Section("Default Hyper shortcuts") {
+                Text("W E R\nS D F\nX C V")
+                    .font(.system(.body, design: .monospaced))
+                    .accessibilityLabel("Top row W E R. Middle row S D F. Bottom row X C V.")
+                note("The edge keys cycle through half, two-thirds, and one-third. The corner keys resize to a quarter.")
+                note("Center switches between a centered half and the full usable display area.")
+                note("Move to next display keeps the window's relative size and position.")
+            }
+            Section("Hotkeys") {
+                ForEach(WindowCommand.allCases, id: \.self) { command in
+                    let slot = SettingsModel.Slot.command(command)
+                    LabeledContent(command.title) { slotView(slot) }
+                    if let other = model.conflict(slot) {
+                        Text("This hotkey is also used by \(other.title).")
+                            .font(.caption).foregroundStyle(.red)
+                    }
+                }
+                if case .command = model.recordingSlot {
+                    note("Press the key combination. Press Escape to cancel.")
+                } else {
+                    note("If another app uses the same hotkey, clear it there or choose a different hotkey here.")
+                }
+                Button("Reset window management hotkeys") {
+                    model.stopRecording()
+                    model.config.hotkeys.windowManagement = [:]
+                    model.commit()
+                }
+                .disabled(model.config.hotkeys.windowManagement.isEmpty)
             }
         }
     }
@@ -360,7 +435,7 @@ struct SettingsView: View {
             LabeledContent("Hotkeys") {
                 HStack {
                     ForEach(0..<SettingsModel.slotsPerMode, id: \.self) { index in
-                        slotView(SettingsModel.Slot(mode: mode, index: index))
+                        slotView(SettingsModel.Slot.mode(mode, index))
                     }
                     Button("Reset") { model.reset(mode) }
                         .disabled(model.isDefault(mode))
@@ -368,13 +443,13 @@ struct SettingsView: View {
                 }
             }
             ForEach(0..<SettingsModel.slotsPerMode, id: \.self) { index in
-                let slot = SettingsModel.Slot(mode: mode, index: index)
+                let slot = SettingsModel.Slot.mode(mode, index)
                 if let other = model.conflict(slot), let hotkey = model.hotkey(slot) {
-                    Text("\(HotkeySpec(hotkey)?.displayString ?? hotkey) is also used by \(other.mode.rawValue).")
+                    Text("\(HotkeySpec(hotkey)?.displayString ?? hotkey) is also used by \(other.title).")
                         .font(.caption).foregroundStyle(.red)
                 }
             }
-            if model.recordingSlot?.mode == mode {
+            if case .mode(let activeMode, _) = model.recordingSlot, activeMode == mode {
                 note("Press the key combination. Press Escape to cancel.")
             } else {
                 note("Click a hotkey to change it, or add a second one.")
@@ -431,15 +506,16 @@ struct SettingsView: View {
                     .accessibilityLabel("Clear \(HotkeySpec(hotkey)?.displayString ?? hotkey)")
                     .help("Clear this hotkey")
             }
-        } else if slot.index == model.hotkeys(slot.mode).count {
-            // Only the next free slot shows an "add" button.
-            HStack(spacing: 2) {
-                if slot.index == 0 && !recording {
-                    Text("Not set").foregroundStyle(.secondary)
+        } else if case .mode(let mode, let index) = slot {
+            if index == model.hotkeys(mode).count {
+                HStack(spacing: 2) {
+                    if index == 0 && !recording { Text("Not set").foregroundStyle(.secondary) }
+                    Button(recording ? "Press keys…" : "+ Add") { model.record(slot) }
+                        .frame(minWidth: 76)
                 }
-                Button(recording ? "Press keys…" : "+ Add") { model.record(slot) }
-                    .frame(minWidth: 76)
             }
+        } else {
+            Button(recording ? "Press keys…" : "Add hotkey") { model.record(slot) }
         }
     }
 

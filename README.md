@@ -19,8 +19,10 @@ It is a personal replacement for [Homerow](https://www.homerow.app), with a sepa
 |---|---|---|
 | `hyper+j` | Click | Shows a label on each clickable element. Type the label to click it. |
 | `hyper+k` | Window picker | Shows one label on each visible window. Press the label to focus that window. |
+| `hyper+return` | Mission Control picker | Opens Mission Control and labels its window previews. |
 | `hyper+l` | Window | Shows a list of windows with stable labels. Type a label to focus the window. |
 | `hyper+h` | Grid | Refines a mouse target through smaller grids. Press `Enter` to scroll there. |
+| Hyper + layout key | Window management | Moves and resizes the focused window. |
 | none | Search | Type part of an element's text. Press `Enter` to click the highlighted match. |
 
 All default hotkeys use Hyper: Command (⌘) + Control (⌃) + Option (⌥) + Shift (⇧) together.
@@ -86,6 +88,13 @@ Labels come from app names, so they stay the same when windows move:
 | label | Focus that window, then start click mode in it |
 | `Backspace` | Delete the last typed key |
 | `Esc` or the hotkey again | Exit |
+
+### Mission Control picker
+
+Press Hyper + Return to open Mission Control with a label on each window preview.
+Type a label to focus its window. Labels stay visible when you hover over a preview.
+Press Escape or the hotkey again to close Mission Control and its labels.
+If Mission Control is already open, Hyper + K also labels its previews.
 
 ### Window mode keys
 
@@ -161,6 +170,23 @@ Hold Shift (⇧) for three times the configured speed.
 Press `Esc` to exit scroll mode.
 The default speed is 600 points per second.
 
+### Window management keys
+
+Hold Hyper and press a key in this layout. The position of the key matches the position of the window.
+
+```text
+W  E  R
+S  D  F
+X  C  V
+```
+
+- **S, F, E, C** attach the window to the left, right, top, or bottom edge. Repeat the key to cycle through half, two-thirds, and one-third.
+- **W, R, X, V** use the four corners. Each corner takes one quarter of the usable display area.
+- **D** switches between a centered half and the full usable display area. The window stays in its current Space.
+- **G** moves the window to the next display and keeps its relative size and position.
+
+Change or clear shortcuts in **Settings → Window management**.
+
 ## Settings
 
 Open **Settings…** from the menu-bar icon, or open TypeMouse again while it runs.
@@ -204,7 +230,7 @@ TypeMouse writes the defaults on first launch. Every key is optional.
 ```json
 {
   "hintCharacters": "fjdkslaghrueiwotyvmcxbn",
-  "hotkeys": { "click": "hyper+j", "picker": "hyper+k", "window": "hyper+l", "grid": "hyper+h", "search": [] },
+  "hotkeys": { "click": "hyper+j", "picker": "hyper+k", "missionControl": "hyper+return", "window": "hyper+l", "grid": "hyper+h", "search": [] },
   "windowPins": { "c": "com.google.Chrome", "s": "com.tinyspeck.slackmacgap", "t": "com.mitchellh.ghostty" },
   "clickStrategy": { "com.example.app": "mouse" },
   "restoreMousePosition": true,
@@ -225,6 +251,7 @@ TypeMouse writes the defaults on first launch. Every key is optional.
   `hyper` means all four. `meh` means Control, Option, and Shift.
 - A mode takes one hotkey or a list, for example `"search": ["hyper+o", "hyper+backspace"]`.
 - `[]` or `""` means no hotkey. A missing key uses the default.
+- `hotkeys.windowManagement` overrides individual window shortcuts. For example, `{"center":"ctrl+opt+d","nextDisplay":""}` changes Center and clears Move to next display.
 - `gridHand`: `left` or `right` (default). Sets the keys for one display and for refinements.
 - `scrollKeys`: `vim` (default), `esdf`, `wasd`, or `ijkl`. Arrow keys always work.
 - `scrollSpeed`: 50–5000 points per second, with a default of 600. Shift (⇧) triples this speed.

@@ -76,6 +76,7 @@ final class ElementProvider {
 
     /// Order labels by element type (buttons, fields, links, other, app UI). Off: reading order only.
     private var prioritize = true
+    private var scanInParallel = true
     /// Weak duplicates removed by the last scan, for the log.
     private(set) var weakRemoved = 0
     private var removedTargets: [Target] = []
@@ -83,6 +84,8 @@ final class ElementProvider {
     func collect(app: NSRunningApplication, config: Config) -> Result {
         let start = Date()
         prioritize = config.prioritizeLabels
+        // Our own AX tree needs the main thread to answer requests.
+        scanInParallel = app.processIdentifier != ProcessInfo.processInfo.processIdentifier
         let enhanced = config.enhancedUserInterfaceApps.contains(app.bundleIdentifier ?? "")
         AccessibilityActivator.activate(app, enhanced: enhanced)
         var result = scan(app: app, start: start)
@@ -313,7 +316,7 @@ final class ElementProvider {
     }
 
     private func parallel<T>(_ items: [T], _ body: (T) -> Void) {
-        if items.count == 1 { body(items[0]); return }
+        if !scanInParallel || items.count < 2 { items.forEach(body); return }
         DispatchQueue.concurrentPerform(iterations: items.count) { body(items[$0]) }
     }
 

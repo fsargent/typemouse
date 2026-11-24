@@ -12,9 +12,12 @@ public struct Config: Codable, Equatable {
         public var search: [String] = []
         public var window = ["hyper+l"]
         public var picker = ["hyper+k"]
+        public var missionControl = ["hyper+return"]
         public var grid = ["hyper+h"]
+        /// Per-command overrides. An empty string clears the command's default hotkey.
+        public var windowManagement: [String: String] = [:]
 
-        enum CodingKeys: String, CodingKey { case click, search, window, picker, grid }
+        enum CodingKeys: String, CodingKey { case click, search, window, picker, missionControl, grid, windowManagement }
 
         public init() {}
 
@@ -25,7 +28,9 @@ public struct Config: Codable, Equatable {
             search = try Self.decode(c, .search) ?? d.search
             window = try Self.decode(c, .window) ?? d.window
             picker = try Self.decode(c, .picker) ?? d.picker
+            missionControl = try Self.decode(c, .missionControl) ?? d.missionControl
             grid = try Self.decode(c, .grid) ?? d.grid
+            windowManagement = try c.decodeIfPresent([String: String].self, forKey: .windowManagement) ?? [:]
         }
 
         public func encode(to encoder: Encoder) throws {
@@ -34,7 +39,13 @@ public struct Config: Codable, Equatable {
             try Self.encode(search, &c, .search)
             try Self.encode(window, &c, .window)
             try Self.encode(picker, &c, .picker)
+            try Self.encode(missionControl, &c, .missionControl)
             try Self.encode(grid, &c, .grid)
+            if !windowManagement.isEmpty { try c.encode(windowManagement, forKey: .windowManagement) }
+        }
+
+        public func shortcut(for command: WindowCommand) -> String {
+            windowManagement[command.rawValue] ?? command.defaultHotkey
         }
 
         private static func decode(_ c: KeyedDecodingContainer<CodingKeys>, _ key: CodingKeys) throws -> [String]? {

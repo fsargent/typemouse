@@ -6,6 +6,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let capture = KeyCapture()
     private let hotkeys = HotkeyManager()
     private let hyperKey = HyperKey()
+    private let tiler = WindowTiler()
+    private var windowShortcuts: [(spec: HotkeySpec, command: WindowCommand)] = []
     private var config = ConfigStore.load()
     private lazy var hints = HintMode(capture: capture, config: config)
     private lazy var windows = WindowMode(capture: capture, config: config)
@@ -98,6 +100,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             ("search", config.hotkeys.search, { [weak self] in self?.toggleHints(search: true) }),
             ("window", config.hotkeys.window, { [weak self] in self?.toggleWindows() }),
             ("picker", config.hotkeys.picker, { [weak self] in self?.togglePicker() }),
+            ("mission control picker", config.hotkeys.missionControl, { [weak self] in self?.togglePicker(missionControl: true) }),
             ("grid", config.hotkeys.grid, { [weak self] in self?.toggleGrid() }),
         ]
         for (name, strings, action) in pairs {
@@ -111,6 +114,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 }
             }
         }
+        windowShortcuts = WindowCommand.allCases.compactMap { command in
+            guard let spec = HotkeySpec(config.hotkeys.shortcut(for: command)),
+                  hotkeys.register(spec, { [weak self] in self?.arrangeWindow(command) }) else { return nil }
+            return (spec, command)
+        }
+    }
+
+    private func arrangeWindow(_ command: WindowCommand) {
+        guard AX.isTrusted(prompt: true) else { return }
+        hints.exit()
+        windows.exit()
+        picker.exit()
+        grid.exit(movePointer: false)
+        tiler.apply(command)
     }
 
     private func toggleHints(search: Bool) {
@@ -146,12 +163,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func togglePicker() {
+    private func togglePicker(missionControl: Bool = false) {
         guard capture.active || startCapture(prompt: true) else { return }
         grid.exit()
         hints.exit()
         windows.exit()
-        if picker.isActive { picker.exit() } else { picker.start() }
+        if picker.isActive {
+            let switchToOverview = missionControl && !picker.isShowingOverview
+            picker.exit()
+            if switchToOverview { picker.start(missionControl: true) }
+        } else {
+            picker.start(missionControl: missionControl)
+        }
     }
 
     private func toggleGrid() {
@@ -170,7 +193,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             if matches(key, config.hotkeys.search) { toggleHints(search: true); return }
             if matches(key, config.hotkeys.window) { toggleWindows(); return }
             if matches(key, config.hotkeys.picker) { togglePicker(); return }
+            if matches(key, config.hotkeys.missionControl) { togglePicker(missionControl: true); return }
             if matches(key, config.hotkeys.grid) { toggleGrid(); return }
+            if let shortcut = windowShortcuts.first(where: { matches(key, $0.spec) }) {
+                arrangeWindow(shortcut.command)
+                return
+            }
         }
         if hints.isActive { hints.handle(key) }
         else if windows.isActive { windows.handle(key) }
@@ -180,15 +208,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func matches(_ key: KeyEvent, _ strings: [String]) -> Bool {
+        strings.contains { HotkeySpec($0).map { matches(key, $0) } ?? false }
+    }
+
+    private func matches(_ key: KeyEvent, _ spec: HotkeySpec) -> Bool {
         var mods: HotkeySpec.Modifiers = []
         if key.command { mods.insert(.command) }
         if key.shift { mods.insert(.shift) }
         if key.option { mods.insert(.option) }
         if key.control { mods.insert(.control) }
-        return strings.contains { string in
-            guard let spec = HotkeySpec(string) else { return false }
-            return Int64(spec.keyCode) == key.keyCode && mods == spec.modifiers
-        }
+        return Int64(spec.keyCode) == key.keyCode && mods == spec.modifiers
     }
 
     // MARK: - Menu bar
@@ -200,6 +229,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         for (title, action, keyPath) in [("Click mode", #selector(menuClick), \Config.Hotkeys.click),
                                          ("Window list", #selector(menuWindows), \Config.Hotkeys.window),
                                          ("Window picker", #selector(menuPicker), \Config.Hotkeys.picker),
+                                         ("Mission Control picker", #selector(menuMissionControl), \Config.Hotkeys.missionControl),
                                          ("Grid mode", #selector(menuGrid), \Config.Hotkeys.grid)] {
             let mi = menu.addItem(withTitle: title, action: action, keyEquivalent: "")
             mi.target = self
@@ -237,6 +267,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func menuPicker() {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { self.togglePicker() }
+    }
+
+    @objc private func menuMissionControl() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { self.togglePicker(missionControl: true) }
     }
 
     @objc private func menuGrid() {
