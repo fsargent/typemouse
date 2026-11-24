@@ -48,9 +48,10 @@ final class GridMode {
 
     func start() {
         screenFrames = NSScreen.screens.map(\.frame)
-        let screens = NSScreen.screens.map { Geometry.axRect(fromCocoa: $0.frame, primaryHeight: AX.primaryHeight) }
+        let primaryHeight = AX.primaryHeight
+        let screens = screenFrames.map { Geometry.axRect(fromCocoa: $0, primaryHeight: primaryHeight) }
         guard !screens.isEmpty else { return }
-        navigation = GridNavigation(screens: screens, pointer: CGEvent(source: nil)?.location ?? .zero)
+        navigation = GridNavigation(screens: screens, pointer: pointerLocation ?? .zero)
         isActive = true
         isScrolling = false
         capture.setActive(true)
@@ -60,15 +61,15 @@ final class GridMode {
 
     func exit(movePointer: Bool = true) {
         guard isActive else { return }
-        let point = navigation?.point
-        Log.info("\(isScrolling ? "scroll" : "grid") exited, move pointer: \(movePointer)")
+        let point = movePointer && !isScrolling ? navigation?.point : nil
+        Log.info("\(isScrolling ? "scroll" : "grid") exited, move pointer: \(point != nil)")
         stopScrolling()
         isActive = false
         isScrolling = false
         navigation = nil
         overlay.hide()
         capture.setActive(false)
-        if movePointer, let point { Actuator.moveMouse(to: point) }
+        if let point { Actuator.moveMouse(to: point) }
     }
 
     func handle(_ key: KeyEvent) {
@@ -92,13 +93,14 @@ final class GridMode {
         guard !key.isRepeat else { return }
         switch key.special {
         case .space:
-            guard let point = navigation?.point else { return }
+            guard let point = navigation?.point ?? pointerLocation else { return }
             exit(movePointer: false)
             Actuator.mouseClick(at: point, restore: false)
         case .enter:
-            guard let point = navigation?.point else { return }
+            let target = navigation?.point
+            guard let point = target ?? pointerLocation else { return }
             scrollPoint = point
-            Actuator.moveMouse(to: point)
+            if let target { Actuator.moveMouse(to: target) }
             isScrolling = true
             Log.info("scroll started, keys: \(config.scrollKeys.rawValue), speed: \(config.scrollSpeed)")
             render()
@@ -120,6 +122,8 @@ final class GridMode {
     }
 
     func releaseKeys() { stopScrolling() }
+
+    private var pointerLocation: CGPoint? { CGEvent(source: nil)?.location }
 
     func flagsChanged(_ flags: CGEventFlags) {
         let hyper: CGEventFlags = [.maskShift, .maskCommand, .maskControl, .maskAlternate]
@@ -177,13 +181,15 @@ final class GridMode {
                                             style: .normal, fontSize: min(30, max(12, cell.height / 5))))
                 }
             }
-            let center = CGPoint(x: region.frame.midX, y: region.frame.midY)
+        }
+        if let center = navigation.point {
             labels.append(LabelSpec(text: "", typedCount: 0,
                                     rect: CGRect(x: center.x - 2, y: center.y - 2, width: 4, height: 4), style: .highlighted))
         }
         let extra = navigation.hasMoreScreens ? " · Tab: screens" : ""
+        let escape = navigation.point == nil ? "Esc: exit" : "Esc: move"
         overlay.render(labels,
-                       banner: "Grid \(navigation.depth) · Esc: move · Space: click · Enter: scroll · Backspace: undo\(extra)",
-                       bannerPoint: navigation.point)
+                       banner: "Grid · \(escape) · Space: click · Enter: scroll · Backspace: undo\(extra)",
+                       bannerPoint: navigation.point ?? pointerLocation)
     }
 }

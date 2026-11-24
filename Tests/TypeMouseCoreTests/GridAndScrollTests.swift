@@ -6,6 +6,7 @@ final class GridNavigationTests: XCTestCase {
     func testSingleDisplayRefinesAndUndoes() {
         let screen = CGRect(x: 0, y: 0, width: 900, height: 900)
         var grid = GridNavigation(screens: [screen], pointer: CGPoint(x: 20, y: 20))
+        XCTAssertNil(grid.point)
         XCTAssertEqual(grid.regions[0].keys, Array("uiojklm,."))
         XCTAssertFalse(grid.select("w"))
         XCTAssertTrue(grid.select("o"))
@@ -18,10 +19,11 @@ final class GridNavigationTests: XCTestCase {
         grid.back()
         grid.back()
         XCTAssertEqual(grid.depth, 0)
+        XCTAssertNil(grid.point)
         XCTAssertEqual(grid.regions[0].frame, screen)
     }
 
-    func testTwoDisplaysUsePhysicalOrderRatherThanPrimaryOrder() {
+    func testTwoDisplaysUsePhysicalOrderRatherThanPrimaryOrder() throws {
         let right = CGRect(x: 0, y: 0, width: 900, height: 900)
         let left = CGRect(x: -1200, y: -300, width: 1200, height: 900)
         var grid = GridNavigation(screens: [right, left], pointer: CGPoint(x: 0, y: 0))
@@ -30,8 +32,9 @@ final class GridNavigationTests: XCTestCase {
         XCTAssertTrue(grid.select("v"))
         XCTAssertEqual(grid.regions[0].frame, CGRect(x: -400, y: 300, width: 400, height: 300))
         XCTAssertTrue(grid.select("u"))
-        XCTAssertEqual(grid.point.x, -400 + 400.0 / 6, accuracy: 0.0001)
-        XCTAssertEqual(grid.point.y, 350)
+        let point = try XCTUnwrap(grid.point)
+        XCTAssertEqual(point.x, -400 + 400.0 / 6, accuracy: 0.0001)
+        XCTAssertEqual(point.y, 350)
     }
 
     func testEveryKeyMapsToItsRowAndColumn() {
@@ -49,7 +52,7 @@ final class GridNavigationTests: XCTestCase {
         XCTAssertTrue(grid.hasMoreScreens)
         grid.nextScreens()
         XCTAssertEqual(grid.regions.map(\.frame), [screens[2]])
-        XCTAssertEqual(grid.point, CGPoint(x: 2250, y: 450))
+        XCTAssertNil(grid.point)
         XCTAssertTrue(grid.select("k"))
         XCTAssertEqual(grid.point, CGPoint(x: 2250, y: 450))
         grid.nextScreens()
@@ -57,14 +60,22 @@ final class GridNavigationTests: XCTestCase {
         XCTAssertEqual(grid.regions.map(\.frame), Array(screens.prefix(2)))
     }
 
-    func testRefinementStopsAtPointerPrecision() {
+    func testGridStartsOnThePairContainingThePointer() {
+        let screens = (0..<4).map { CGRect(x: $0 * 900, y: 0, width: 900, height: 900) }
+        let grid = GridNavigation(screens: screens, pointer: CGPoint(x: 2200, y: 180))
+        XCTAssertEqual(grid.regions.map(\.frame), Array(screens.suffix(2)))
+        XCTAssertNil(grid.point)
+    }
+
+    func testRefinementStopsAtPointerPrecision() throws {
         var grid = GridNavigation(screens: [CGRect(x: 0, y: 0, width: 1440, height: 900)], pointer: .zero)
         for _ in 0..<100 { grid.select("k") }
         XCTAssertLessThan(grid.depth, 10)
         XCTAssertGreaterThan(grid.regions[0].frame.width, 0)
         XCTAssertGreaterThan(grid.regions[0].frame.height, 0)
-        XCTAssertEqual(grid.point.x, 720, accuracy: 0.0001)
-        XCTAssertEqual(grid.point.y, 450, accuracy: 0.0001)
+        let point = try XCTUnwrap(grid.point)
+        XCTAssertEqual(point.x, 720, accuracy: 0.0001)
+        XCTAssertEqual(point.y, 450, accuracy: 0.0001)
     }
 }
 

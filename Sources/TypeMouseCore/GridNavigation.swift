@@ -13,7 +13,6 @@ public struct GridNavigation {
     }
 
     private let screens: [CGRect]
-    private let initialPoint: CGPoint
     private var history: [Region] = []
     private var page = 0
 
@@ -21,18 +20,16 @@ public struct GridNavigation {
         self.screens = screens.sorted { a, b in
             a.minX == b.minX ? a.minY < b.minY : a.minX < b.minX
         }
-        let screen = screens.first(where: { $0.contains(pointer) }) ?? screens.first ?? .zero
-        initialPoint = CGPoint(x: screen.midX, y: screen.midY)
+        if let index = self.screens.firstIndex(where: { $0.contains(pointer) }) {
+            page = index / 2
+        }
     }
 
     public var depth: Int { history.count }
     public var hasMoreScreens: Bool { screens.count > 2 }
-    public var point: CGPoint {
-        guard let frame = history.last?.frame else {
-            if regions.contains(where: { $0.frame.contains(initialPoint) }) { return initialPoint }
-            let frame = regions.first?.frame ?? .zero
-            return CGPoint(x: frame.midX, y: frame.midY)
-        }
+    /// The center of the selected cell. No cell is selected when the grid opens.
+    public var point: CGPoint? {
+        guard let frame = history.last?.frame else { return nil }
         return CGPoint(x: frame.midX, y: frame.midY)
     }
 

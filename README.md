@@ -127,8 +127,9 @@ X C V      M , .
 
 Each key replaces the grid with a smaller grid inside that cell.
 After selecting a display, either hand can refine the target.
-The blue marker shows the center of the current area.
-The cursor stays in place until you move, click, or enter scroll mode.
+The blue marker shows the center of the selected cell.
+Opening the grid leaves the pointer where it is.
+Without a selection, Escape leaves the pointer alone. Space clicks there, and Enter starts scroll mode there.
 
 | Key | Action |
 |---|---|
@@ -143,7 +144,7 @@ The cursor stays in place until you move, click, or enter scroll mode.
 
 Press `Enter` in grid mode to scroll at the target.
 Hold a direction key to scroll continuously. Release it to stop.
-Choose the letter keys and scroll speed in **Settings → Scrolling**.
+Choose the letter keys and scroll speed in **Settings → Scroll mode**.
 
 | Layout | Up | Left | Down | Right |
 |---|---|---|---|---|
@@ -161,10 +162,12 @@ The default speed is 600 points per second.
 
 Open **Settings…** from the menu-bar icon, or open TypeMouse again while it runs.
 
-- **Hotkeys**: click a hotkey, then press the new key combination. Press `Esc` to cancel. Click **+ Add** to give a mode a second hotkey. Click **×** to clear a hotkey and turn that mode off.
-- **Labels**: hint characters and label size.
-- **Scrolling**: Vim, ESDF, WASD, or IJKL keys, plus scroll speed in points per second.
-- **Behavior**: chain click delay (milliseconds), click mode after the window picker, mouse position after a click, and launch at login.
+Select a mode in the sidebar to see what it does, how to open it, and what you can change.
+For example, **Click mode** has label size and chain click settings. **Scroll mode** has the key layout and speed.
+Use **General** for Caps Lock as Hyper, launch at login, shared hint characters, and access to the config file.
+
+Click a hotkey to record a new combination. Press `Esc` to cancel.
+Use **Add** for a second hotkey or **×** to clear one. **Reset** restores the mode's default hotkeys.
 
 The settings window writes the same config file described below.
 
