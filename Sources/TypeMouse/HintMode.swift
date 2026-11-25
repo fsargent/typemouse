@@ -6,6 +6,9 @@ final class HintMode {
     enum Phase { case labels, search }
 
     private(set) var isActive = false
+    private(set) var isLoading = false
+    private var scanID = UUID()
+    private var interactedWithLabels = false
     private var phase = Phase.labels
     private var app: NSRunningApplication?
     private var targets: [Target] = []
@@ -37,35 +40,78 @@ final class HintMode {
         guard config.isModeEnabled(search ? .search : .click) else { return }
         if !keepChain { chainMode = config.chainModeByDefault }
         guard let app = NSWorkspace.shared.frontmostApplication else { return }
-        // Swallow keys from now on. Keys typed during the scan queue up and apply after it.
+        // Escape can dismiss the overlay while the browser supplies its controls.
         capture.setActive(true)
         isActive = true
+        scanID = UUID()
+        let id = scanID
+        interactedWithLabels = false
+        phase = search ? .search : .labels
         self.app = app
+        targets = []
+        labels = []
         typed = ""
         query = ""
         highlight = 0
         textResolved = false
 
-        let result = ElementProvider().collect(app: app, config: config)
+        let config = config
+        let enhanced = config.enhancedUserInterfaceApps.contains(app.bundleIdentifier ?? "")
+        if enhanced && app.processIdentifier != ProcessInfo.processInfo.processIdentifier {
+            isLoading = true
+            let desktop = AX.desktopBounds()
+            let fallbackDeadline = DispatchTime.now() + 0.85
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
+                guard let self, self.scanID == id, self.isLoading else { return }
+                self.overlay.render([], banner: "Loading controls in \(app.localizedName ?? "browser")…")
+            }
+            DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+                let result = ElementProvider().collect(app: app, config: config, desktop: desktop) { fallback in
+                    DispatchQueue.main.asyncAfter(deadline: fallbackDeadline) { [weak self] in
+                        guard let self, self.scanID == id, self.isLoading, !fallback.targets.isEmpty else { return }
+                        Log.info("Showing browser controls while the page tree loads")
+                        self.finishScan(fallback, app: app, id: id)
+                    }
+                }
+                DispatchQueue.main.async { [weak self] in
+                    guard let self, self.scanID == id, !self.interactedWithLabels else { return }
+                    if self.isLoading || result.menuOpen || result.targets.contains(where: \.inWebArea) {
+                        self.finishScan(result, app: app, id: id)
+                    }
+                }
+            }
+        } else {
+            finishScan(ElementProvider().collect(app: app, config: config), app: app, id: id)
+        }
+    }
+
+    private func finishScan(_ result: ElementProvider.Result, app: NSRunningApplication, id: UUID) {
+        guard isActive, scanID == id else { return }
+        guard app.processIdentifier == NSWorkspace.shared.frontmostApplication?.processIdentifier else {
+            exit("app changed during scan")
+            return
+        }
+        isLoading = false
         Log.info(String(format: "scan %@: %d targets (%d weak duplicates removed), %d visited, %.0f ms%@", app.localizedName ?? "?",
                         result.targets.count, result.weakRemoved, result.visited, result.duration * 1000, result.menuOpen ? " (menu)" : ""))
         targets = result.targets
         guard !targets.isEmpty else {
             overlay.render([], banner: "No clickable elements in \(app.localizedName ?? "this app")")
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
-                if self?.targets.isEmpty == true { self?.exit("no targets") }
+                if self?.scanID == id, self?.targets.isEmpty == true { self?.exit("no targets") }
             }
             return
         }
         labels = Hints.spread(Hints.generate(count: targets.count, alphabet: config.hintAlphabet), alphabet: config.hintAlphabet)
         overlay.fontSize = CGFloat(config.labelFontSize)
-        if search { enterSearch() } else { phase = .labels; render() }
+        if phase == .search { enterSearch() } else { render() }
     }
 
     func exit(_ reason: String = "done") {
         guard isActive else { return }
         Log.info("click mode closed: \(reason)")
         isActive = false
+        isLoading = false
         capture.setActive(false)
         overlay.hide()
         targets = []
@@ -81,6 +127,7 @@ final class HintMode {
         guard isActive else { return }
         if key.special == .escape { exit("escape"); return }
         guard !targets.isEmpty else { return }
+        interactedWithLabels = true
         switch phase {
         case .labels: handleLabels(key)
         case .search: handleSearch(key)
@@ -222,6 +269,7 @@ final class HintMode {
         let restore = config.restoreMousePosition
         let delay = Double(config.chainDelayMs) / 1000
         if chain {
+            let id = scanID
             // Stay in click mode. Empty targets make key presses wait (Esc still exits) until the new scan.
             overlay.hide()
             targets = []
@@ -230,7 +278,7 @@ final class HintMode {
                 Actuator.perform(kind, on: target, strategy: strategy, restoreMouse: restore)
                 // Give the app a moment to react to the click, then label what is on screen now.
                 DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-                    guard let self, self.isActive else { return }
+                    guard let self, self.isActive, self.scanID == id else { return }
                     self.start(search: false, keepChain: true)
                 }
             }

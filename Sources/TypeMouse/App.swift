@@ -138,12 +138,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         windows.exit()
         picker.exit()
         grid.exit(movePointer: false)
-        tiler.apply(command)
+        tiler.apply(command, enhancedApps: config.enhancedUserInterfaceApps)
     }
 
     private func toggleHints(search: Bool) {
         guard config.isModeEnabled(search ? .search : .click),
-              capture.active || startCapture(prompt: true) else { return }
+              !hints.isLoading, capture.active || startCapture(prompt: true) else { return }
         grid.exit()
         windows.exit()
         picker.exit()

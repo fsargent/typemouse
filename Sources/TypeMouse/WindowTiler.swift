@@ -13,11 +13,12 @@ final class WindowTiler {
     private var lastPlacement: Placement?
     private var revision = 0
 
-    func apply(_ command: WindowCommand) {
+    func apply(_ command: WindowCommand, enhancedApps: [String]) {
         revision &+= 1
         guard let app = NSWorkspace.shared.frontmostApplication,
               app.processIdentifier != ProcessInfo.processInfo.processIdentifier else { return }
         let application = AXUIElementCreateApplication(app.processIdentifier)
+        let keepEnhanced = enhancedApps.contains(app.bundleIdentifier ?? "")
         guard let window = application.element(kAXFocusedWindowAttribute),
               window.bool("AXFullScreen") != true,
               let frame = window.frame else { return }
@@ -53,22 +54,41 @@ final class WindowTiler {
         }
 
         let frames = command.frames(in: bounds)
-        var step = 0
+        let step: Int
         if let last = lastPlacement, command == last.command, CFEqual(window, last.window),
            bounds == last.bounds, Geometry.nearlyEqual(frame, last.frame) {
             step = (last.step + 1) % frames.count
+        } else {
+            step = 0
         }
         lastPlacement = nil
-        guard let applied = place(window, in: application, at: frames[step], original: frame, anchorIn: bounds) else { return }
+        let target = frames[step]
+        guard let applied = place(window, in: application, at: target, original: frame,
+                                  anchorIn: bounds, keepEnhanced: keepEnhanced)
+                ?? (keepEnhanced ? window.frame : nil) else { return }
         lastPlacement = Placement(window: window, command: command, bounds: bounds, step: step, frame: applied)
+        if keepEnhanced, applied.size != target.size {
+            let requestedRevision = revision
+            // A browser can drop the resize while its move animation is still running.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+                guard let self, self.revision == requestedRevision,
+                      NSWorkspace.shared.frontmostApplication?.processIdentifier == app.processIdentifier,
+                      let current = window.frame, Geometry.nearlyEqual(current, applied) else { return }
+                guard self.resize(window, to: target.size),
+                      let settled = self.finishPlacement(window, at: target, in: bounds,
+                                                         retrySize: false, repeatMove: false) else { return }
+                self.lastPlacement = Placement(window: window, command: command, bounds: bounds, step: step, frame: settled)
+            }
+        }
     }
 
     private func place(_ window: AXUIElement, in application: AXUIElement, at target: CGRect, original: CGRect, anchorIn bounds: CGRect,
-                       changesDisplay: Bool = false) -> CGRect? {
+                       changesDisplay: Bool = false, keepEnhanced: Bool = false) -> CGRect? {
         // Enhanced accessibility can animate each frame write. Pause it while setting the frame.
         // Chromium can apply the change even when the AX setter reports an error.
         let enhanced = "AXEnhancedUserInterface"
-        let restoreEnhanced = application.bool(enhanced) == true
+        // Chromium delays page accessibility after this attribute is re-enabled.
+        let restoreEnhanced = !keepEnhanced && application.bool(enhanced) == true
         if restoreEnhanced { application.set(enhanced, kCFBooleanFalse) }
         defer { if restoreEnhanced { application.set(enhanced, kCFBooleanTrue) } }
 
@@ -93,11 +113,13 @@ final class WindowTiler {
             return nil
         }
 
-        return finishPlacement(window, at: target, in: bounds, retrySize: changesDisplay && resizable)
+        return finishPlacement(window, at: target, in: bounds, retrySize: changesDisplay && resizable,
+                               repeatMove: !keepEnhanced)
     }
 
-    private func finishPlacement(_ window: AXUIElement, at target: CGRect, in bounds: CGRect, retrySize: Bool) -> CGRect? {
-        _ = move(window, to: target.origin)
+    private func finishPlacement(_ window: AXUIElement, at target: CGRect, in bounds: CGRect,
+                                 retrySize: Bool, repeatMove: Bool) -> CGRect? {
+        if repeatMove { _ = move(window, to: target.origin) }
         guard var resized = window.frame else { return nil }
         // AppKit can clip a resize until the window has entered the destination display.
         if retrySize, resized.size != target.size, resize(window, to: target.size) {
