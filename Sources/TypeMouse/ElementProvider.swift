@@ -81,39 +81,46 @@ final class ElementProvider {
     private(set) var weakRemoved = 0
     private var removedTargets: [Target] = []
 
-    func collect(app: NSRunningApplication, config: Config) -> Result {
+    func collect(app: NSRunningApplication, config: Config, desktop: CGRect? = nil,
+                 browserFallback: ((Result) -> Void)? = nil) -> Result {
         let start = Date()
+        let desktop = desktop ?? AX.desktopBounds()
         prioritize = config.prioritizeLabels
         // Our own AX tree needs the main thread to answer requests.
         scanInParallel = app.processIdentifier != ProcessInfo.processInfo.processIdentifier
         let enhanced = config.enhancedUserInterfaceApps.contains(app.bundleIdentifier ?? "")
         AccessibilityActivator.activate(app, enhanced: enhanced)
-        var result = scan(app: app, start: start)
-        guard enhanced, !result.targets.contains(where: \.inWebArea) else { return result }
+        var result = scan(app: app, start: start, desktop: desktop)
+        guard enhanced, !result.menuOpen, !result.targets.contains(where: \.inWebArea) else { return result }
+        browserFallback?(result)
 
         // The browser builds its page tree in the background after the flag turns on, and the flag
         // can read as on before the tree exists. The tree also fills in over several scans, so stop
-        // when the page target count stops growing, or after 2 s.
+        // when the page target count stops growing. The overlay can use the first scan meanwhile.
+        let retryBudget = browserFallback == nil ? 2.0 : 3.0
         var lastWebCount = 0
-        while Date().timeIntervalSince(start) < 2 {
-            usleep(150_000)
+        while Date().timeIntervalSince(start) < retryBudget {
+            usleep(75_000)
             AccessibilityActivator.activate(app, enhanced: true)
-            result = scan(app: app, start: start)
-            let webCount = result.targets.filter(\.inWebArea).count
+            let retry = scan(app: app, start: start, desktop: desktop)
+            if retry.menuOpen { return retry }
+            let webCount = retry.targets.filter(\.inWebArea).count
+            if webCount > 0 || (lastWebCount == 0 && !retry.targets.isEmpty) { result = retry }
             if webCount > 0 && webCount == lastWebCount { break }
-            lastWebCount = webCount
+            if webCount > 0 { lastWebCount = webCount }
         }
-        Log.info(String(format: "waited for page tree in %@: %d page targets after %.0f ms", app.localizedName ?? "?",
-                        lastWebCount, Date().timeIntervalSince(start) * 1000))
+        result.duration = Date().timeIntervalSince(start)
+        let status = lastWebCount == 0 ? "page tree unavailable" : "page tree ready"
+        Log.info(String(format: "%@ in %@: %d page targets after %.0f ms", status, app.localizedName ?? "?",
+                        lastWebCount, result.duration * 1000))
         return result
     }
 
-    private func scan(app: NSRunningApplication, start: Date) -> Result {
+    private func scan(app: NSRunningApplication, start: Date, desktop: CGRect) -> Result {
         found = []
         visited = 0
 
         let appEl = AXUIElementCreateApplication(app.processIdentifier)
-        let desktop = AX.desktopBounds()
 
         // If a menu is open, the user wants its items and nothing else.
         let menus = openMenus(appEl)

@@ -143,7 +143,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func toggleHints(search: Bool) {
         guard config.isModeEnabled(search ? .search : .click),
-              capture.active || startCapture(prompt: true) else { return }
+              !hints.isLoading, capture.active || startCapture(prompt: true) else { return }
         grid.exit()
         windows.exit()
         picker.exit()
