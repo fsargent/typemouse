@@ -101,7 +101,7 @@ final class ElementProvider {
         var lastWebCount = 0
         while Date().timeIntervalSince(start) < retryBudget {
             usleep(75_000)
-            AccessibilityActivator.activate(app, enhanced: true)
+            // A new activation request can restart Chromium's two-second delay.
             let retry = scan(app: app, start: start, desktop: desktop)
             if retry.menuOpen { return retry }
             let webCount = retry.targets.filter(\.inWebArea).count

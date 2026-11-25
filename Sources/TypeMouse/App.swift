@@ -138,7 +138,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         windows.exit()
         picker.exit()
         grid.exit(movePointer: false)
-        tiler.apply(command)
+        tiler.apply(command, enhancedApps: config.enhancedUserInterfaceApps)
     }
 
     private func toggleHints(search: Bool) {
