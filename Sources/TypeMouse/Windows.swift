@@ -73,7 +73,7 @@ final class WindowProvider {
     private static func windows(of app: NSRunningApplication) -> [WindowInfo] {
         let appEl = AXUIElementCreateApplication(app.processIdentifier)
         return appEl.elements(kAXWindowsAttribute).compactMap { w in
-            let v = w.values([kAXRoleAttribute, kAXSubroleAttribute, kAXTitleAttribute, kAXMinimizedAttribute, kAXSizeAttribute])
+            let v = w.values([kAXRoleAttribute, kAXSubroleAttribute, kAXTitleAttribute, kAXMinimizedAttribute])
             guard (v[kAXRoleAttribute] as? String) == kAXWindowRole else { return nil }
             let sub = v[kAXSubroleAttribute] as? String
             guard sub == kAXStandardWindowSubrole || sub == kAXDialogSubrole else { return nil }
@@ -163,7 +163,7 @@ enum SkyLight {
     static func makeFront(pid: pid_t, windowID: CGWindowID) -> Bool {
         guard let setFront else { return false }
         var psn = ProcessSerialNumber()
-        guard clk_GetProcessForPID(pid, &psn) == noErr else { return false }
+        guard getProcessForPID(pid, &psn) == noErr else { return false }
         let userGenerated: UInt32 = 0x200
         guard setFront(&psn, windowID, userGenerated) == .success else { return false }
         makeKey(&psn, windowID)
@@ -189,4 +189,4 @@ enum SkyLight {
 }
 
 @_silgen_name("GetProcessForPID")
-private func clk_GetProcessForPID(_ pid: pid_t, _ psn: UnsafeMutablePointer<ProcessSerialNumber>) -> OSStatus
+private func getProcessForPID(_ pid: pid_t, _ psn: UnsafeMutablePointer<ProcessSerialNumber>) -> OSStatus

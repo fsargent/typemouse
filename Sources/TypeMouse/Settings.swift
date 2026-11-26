@@ -213,7 +213,7 @@ final class SettingsModel: ObservableObject {
         if flags.contains(.control) { mods.insert(.control) }
 
         // Escape with no modifiers cancels.
-        if event.keyCode == 53 && mods.isEmpty {
+        if UInt32(event.keyCode) == KeyCode.escape && mods.isEmpty {
             stopRecording()
             return
         }

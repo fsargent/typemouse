@@ -335,7 +335,7 @@ final class WindowPanel {
         label.attributedStringValue = s
         label.alignment = .center
         label.wantsLayer = true
-        label.layer?.backgroundColor = NSColor(calibratedRed: 1, green: 0.85, blue: 0.2, alpha: row.label.isEmpty ? 0 : 0.9).cgColor
+        label.layer?.backgroundColor = Overlay.hintYellow.withAlphaComponent(row.label.isEmpty ? 0 : 0.9).cgColor
         label.layer?.cornerRadius = 4
 
         let icon = NSImageView(image: row.icon ?? NSImage())

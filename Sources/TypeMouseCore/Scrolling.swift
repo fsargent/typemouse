@@ -33,10 +33,10 @@ public enum ScrollKeys: String, Codable, CaseIterable {
     public func direction(character: String, keyCode: Int64) -> ScrollDirection? {
         // Arrow keys work with every layout.
         switch keyCode {
-        case 126: return .up
-        case 125: return .down
-        case 123: return .left
-        case 124: return .right
+        case Int64(KeyCode.upArrow): return .up
+        case Int64(KeyCode.downArrow): return .down
+        case Int64(KeyCode.leftArrow): return .left
+        case Int64(KeyCode.rightArrow): return .right
         default: break
         }
         let keys = directions.lowercased().split(separator: " ").map(String.init)

@@ -18,9 +18,7 @@ final class HyperKey {
     private var sleepObserver: NSObjectProtocol?
 
     var isEnabled: Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        return _isEnabled
+        lock.withLock { _isEnabled }
     }
 
     static let hyperFlags: CGEventFlags = [.maskCommand, .maskControl, .maskAlternate, .maskShift]
@@ -42,28 +40,29 @@ final class HyperKey {
     func setEnabled(_ on: Bool) {
         guard on != isEnabled else { return }
         if on {
-            guard startTap() else { Log.info("caps lock to hyper: event tap failed"); return }
+            guard startTap() else {
+                Log.info("caps lock to hyper: event tap failed")
+                return
+            }
             Self.updateRemap(add: true)
-            lock.lock()
-            _isEnabled = true
-            held = false
-            lock.unlock()
+            lock.withLock {
+                _isEnabled = true
+                held = false
+            }
             Log.info("caps lock to hyper: on")
         } else {
             Self.updateRemap(add: false)
-            lock.lock()
-            _isEnabled = false
-            held = false
-            lock.unlock()
+            lock.withLock {
+                _isEnabled = false
+                held = false
+            }
             if let tap { CGEvent.tapEnable(tap: tap, enable: false) }
             Log.info("caps lock to hyper: off")
         }
     }
 
     private func resetHeld() {
-        lock.lock()
-        held = false
-        lock.unlock()
+        lock.withLock { held = false }
     }
 
     // MARK: - Remap
@@ -113,14 +112,10 @@ final class HyperKey {
             return Unmanaged.passUnretained(event)
         }
         if event.getIntegerValueField(.keyboardEventKeycode) == CapsLockMapping.f18KeyCode {
-            lock.lock()
-            held = type == .keyDown
-            lock.unlock()
+            lock.withLock { held = type == .keyDown }
             return nil
         }
-        lock.lock()
-        let isHeld = held
-        lock.unlock()
+        let isHeld = lock.withLock { held }
         if isHeld { event.flags.formUnion(Self.hyperFlags) }
         return Unmanaged.passUnretained(event)
     }

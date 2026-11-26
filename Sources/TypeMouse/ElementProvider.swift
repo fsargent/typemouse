@@ -8,7 +8,6 @@ struct Target {
     /// Visible part of the element, in AX (top-left origin) coordinates.
     let frame: CGRect
     let role: String
-    let subrole: String?
     var text: String
     let inWebArea: Bool
     let depth: Int
@@ -58,7 +57,7 @@ final class ElementProvider {
     ]
 
     static let baseAttributes = [
-        kAXRoleAttribute, kAXSubroleAttribute, kAXPositionAttribute, kAXSizeAttribute,
+        kAXRoleAttribute, kAXPositionAttribute, kAXSizeAttribute,
         kAXChildrenAttribute, kAXTitleAttribute, kAXDescriptionAttribute, kAXEnabledAttribute,
     ]
 
@@ -77,9 +76,6 @@ final class ElementProvider {
     /// Order labels by element type (buttons, fields, links, other, app UI). Off: reading order only.
     private var prioritize = true
     private var scanInParallel = true
-    /// Weak duplicates removed by the last scan, for the log.
-    private(set) var weakRemoved = 0
-    private var removedTargets: [Target] = []
 
     func collect(app: NSRunningApplication, config: Config, desktop: CGRect? = nil,
                  browserFallback: ((Result) -> Void)? = nil) -> Result {
@@ -100,7 +96,7 @@ final class ElementProvider {
         let retryBudget = browserFallback == nil ? 2.0 : 3.0
         var lastWebCount = 0
         while Date().timeIntervalSince(start) < retryBudget {
-            usleep(75_000)
+            Thread.sleep(forTimeInterval: 0.075)
             // A new activation request can restart Chromium's two-second delay.
             let retry = scan(app: app, start: start, desktop: desktop)
             if retry.menuOpen { return retry }
@@ -142,9 +138,9 @@ final class ElementProvider {
         let windowCount = count()
         // Menu-bar items are leaves here (their menus are closed), so one visit each is enough.
         for item in menuBarItems { visit(item, clip: desktop, depth: 0, inWeb: false) }
-        lock.lock()
-        for i in windowCount..<found.count { found[i].inMenuBar = true }
-        lock.unlock()
+        lock.withLock {
+            for i in windowCount..<found.count { found[i].inMenuBar = true }
+        }
         return finish(start: start, menuOpen: false)
     }
 
@@ -243,8 +239,7 @@ final class ElementProvider {
 
         let text = (v[kAXTitleAttribute] as? String).flatMap { $0.isEmpty ? nil : $0 }
             ?? (v[kAXDescriptionAttribute] as? String) ?? ""
-        add(Target(element: el, frame: visible, role: role, subrole: v[kAXSubroleAttribute] as? String,
-                   text: text, inWebArea: inWeb, depth: depth))
+        add(Target(element: el, frame: visible, role: role, text: text, inWebArea: inWeb, depth: depth))
     }
 
     /// Asks the web engine for its controls in one call instead of walking a huge DOM tree.
@@ -285,8 +280,7 @@ final class ElementProvider {
         if role == "AXWebArea" || role == "AXStaticText" { return }
         let text = (v[kAXTitleAttribute] as? String).flatMap { $0.isEmpty ? nil : $0 }
             ?? (v[kAXDescriptionAttribute] as? String) ?? ""
-        add(Target(element: el, frame: visible, role: role, subrole: v[kAXSubroleAttribute] as? String,
-                   text: text, inWebArea: true, depth: depth))
+        add(Target(element: el, frame: visible, role: role, text: text, inWebArea: true, depth: depth))
     }
 
     // MARK: - Results
@@ -295,9 +289,9 @@ final class ElementProvider {
         let deduped = Self.dedupe(found)
         let keep = LabelPriority.removeWeakDuplicates(deduped.map { .init(frame: $0.frame, role: $0.role) })
         let kept = keep.map { deduped[$0] }
-        weakRemoved = deduped.count - kept.count
+        let weakRemoved = deduped.count - kept.count
         let keptSet = Set(keep)
-        removedTargets = deduped.indices.filter { !keptSet.contains($0) }.map { deduped[$0] }
+        let removedTargets = deduped.indices.filter { !keptSet.contains($0) }.map { deduped[$0] }
         // Earlier targets get the shorter, home-row labels.
         let hasWeb = kept.contains(where: \.inWebArea)
         let prioritize = self.prioritize
@@ -323,11 +317,22 @@ final class ElementProvider {
     }
 
     private func parallel<T>(_ items: [T], _ body: (T) -> Void) {
-        if !scanInParallel || items.count < 2 { items.forEach(body); return }
+        if !scanInParallel || items.count < 2 {
+            items.forEach(body)
+            return
+        }
         DispatchQueue.concurrentPerform(iterations: items.count) { body(items[$0]) }
     }
 
-    private func add(_ t: Target) { lock.lock(); found.append(t); lock.unlock() }
-    private func bump() { lock.lock(); visited += 1; lock.unlock() }
-    private func count() -> Int { lock.lock(); defer { lock.unlock() }; return found.count }
+    private func add(_ target: Target) {
+        lock.withLock { found.append(target) }
+    }
+
+    private func bump() {
+        lock.withLock { visited += 1 }
+    }
+
+    private func count() -> Int {
+        lock.withLock { found.count }
+    }
 }

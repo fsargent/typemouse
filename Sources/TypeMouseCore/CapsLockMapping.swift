@@ -5,7 +5,7 @@ public enum CapsLockMapping {
     public static let capsLock: UInt64 = 0x7_0000_0039
     public static let f18: UInt64 = 0x7_0000_006D
     /// The macOS virtual key code of F18, as key events carry it.
-    public static let f18KeyCode: Int64 = 79
+    public static let f18KeyCode = Int64(KeyCode.f18)
 
     public static let sourceKey = "HIDKeyboardModifierMappingSrc"
     public static let destinationKey = "HIDKeyboardModifierMappingDst"

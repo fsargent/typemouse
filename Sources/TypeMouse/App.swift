@@ -244,14 +244,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         item.button?.image = NSImage(systemSymbolName: "cursorarrow.rays", accessibilityDescription: "TypeMouse")
         let menu = NSMenu()
-        for (title, action, mode, keyPath) in [("Click mode", #selector(menuClick), Config.Mode.click, \Config.Hotkeys.click),
-                                         ("Window list", #selector(menuWindows), Config.Mode.windowList, \Config.Hotkeys.window),
-                                         ("Window picker", #selector(menuPicker), Config.Mode.windowPicker, \Config.Hotkeys.picker),
-                                         ("Mission Control picker", #selector(menuMissionControl), Config.Mode.missionControl, \Config.Hotkeys.missionControl),
-                                         ("Grid mode", #selector(menuGrid), Config.Mode.grid, \Config.Hotkeys.grid),
-                                         ("Choose scrollable area", #selector(menuScroll), Config.Mode.scroll, \Config.Hotkeys.scroll)] {
-            let mi = menu.addItem(withTitle: title, action: action, keyEquivalent: "")
+        let items: [(String, Config.Mode, KeyPath<Config.Hotkeys, [String]>)] = [
+            ("Click mode", .click, \.click),
+            ("Window list", .windowList, \.window),
+            ("Window picker", .windowPicker, \.picker),
+            ("Mission Control picker", .missionControl, \.missionControl),
+            ("Grid mode", .grid, \.grid),
+            ("Choose scrollable area", .scroll, \.scroll),
+        ]
+        for (title, mode, keyPath) in items {
+            let mi = menu.addItem(withTitle: title, action: #selector(openModeFromMenu(_:)), keyEquivalent: "")
             mi.target = self
+            mi.representedObject = mode
             modeMenuItems.append((mi, title, mode, keyPath))
         }
         menu.addItem(.separator())
@@ -275,29 +279,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem?.button?.toolTip = ready ? "TypeMouse" : "TypeMouse needs Accessibility permission"
     }
 
-    @objc private func menuClick() {
+    @objc private func openModeFromMenu(_ sender: NSMenuItem) {
+        guard let mode = sender.representedObject as? Config.Mode else { return }
         // Let the menu close and focus return to the previous app first.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { self.toggleHints(search: false) }
-    }
-
-    @objc private func menuWindows() {
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { self.toggleWindows() }
-    }
-
-    @objc private func menuPicker() {
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { self.togglePicker() }
-    }
-
-    @objc private func menuMissionControl() {
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { self.togglePicker(missionControl: true) }
-    }
-
-    @objc private func menuGrid() {
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { self.toggleGrid() }
-    }
-
-    @objc private func menuScroll() {
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { self.toggleGrid(pickScrollArea: true) }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
+            guard let self else { return }
+            switch mode {
+            case .click: self.toggleHints(search: false)
+            case .windowList: self.toggleWindows()
+            case .windowPicker: self.togglePicker()
+            case .missionControl: self.togglePicker(missionControl: true)
+            case .grid: self.toggleGrid()
+            case .scroll: self.toggleGrid(pickScrollArea: true)
+            default: break
+            }
+        }
     }
 
     @objc private func toggleLoginItem(_ sender: NSMenuItem) {

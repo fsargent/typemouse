@@ -1,5 +1,19 @@
 import Foundation
 
+/// Shared macOS ANSI virtual key codes referenced across core and app targets.
+public enum KeyCode {
+    public static let returnKey: UInt32 = 36
+    public static let tab: UInt32 = 48
+    public static let space: UInt32 = 49
+    public static let backspace: UInt32 = 51
+    public static let escape: UInt32 = 53
+    public static let numpadEnter: UInt32 = 76
+    public static let f18: UInt32 = 79
+    public static let leftArrow: UInt32 = 123
+    public static let rightArrow: UInt32 = 124
+    public static let downArrow: UInt32 = 125
+    public static let upArrow: UInt32 = 126
+}
 
 /// Parses hotkey strings like "hyper+space" or "cmd+shift+k".
 public struct HotkeySpec: Equatable, CustomStringConvertible {
@@ -43,12 +57,12 @@ public struct HotkeySpec: Equatable, CustomStringConvertible {
         "b": 11, "q": 12, "w": 13, "e": 14, "r": 15, "y": 16, "t": 17,
         "1": 18, "2": 19, "3": 20, "4": 21, "6": 22, "5": 23, "=": 24, "9": 25, "7": 26,
         "-": 27, "8": 28, "0": 29, "]": 30, "o": 31, "u": 32, "[": 33, "i": 34, "p": 35,
-        "return": 36, "enter": 36, "l": 37, "j": 38, "'": 39, "k": 40, ";": 41, "\\": 42,
-        ",": 43, "/": 44, "n": 45, "m": 46, ".": 47, "tab": 48, "space": 49, "`": 50,
-        "backspace": 51, "delete": 51, "escape": 53, "esc": 53,
+        "return": KeyCode.returnKey, "enter": KeyCode.returnKey, "l": 37, "j": 38, "'": 39, "k": 40, ";": 41, "\\": 42,
+        ",": 43, "/": 44, "n": 45, "m": 46, ".": 47, "tab": KeyCode.tab, "space": KeyCode.space, "`": 50,
+        "backspace": KeyCode.backspace, "delete": KeyCode.backspace, "escape": KeyCode.escape, "esc": KeyCode.escape,
         "f1": 122, "f2": 120, "f3": 99, "f4": 118, "f5": 96, "f6": 97, "f7": 98, "f8": 100,
         "f9": 101, "f10": 109, "f11": 103, "f12": 111,
-        "left": 123, "right": 124, "down": 125, "up": 126,
+        "left": KeyCode.leftArrow, "right": KeyCode.rightArrow, "down": KeyCode.downArrow, "up": KeyCode.upArrow,
     ]
 }
 
