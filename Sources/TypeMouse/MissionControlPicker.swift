@@ -3,6 +3,7 @@ import TypeMouseCore
 
 /// Reads the buttons that macOS draws for Mission Control. Their frames describe the
 /// thumbnails, including windows that were covered on the desktop or raised by hover.
+@MainActor
 final class MissionControlPicker {
     struct Thumbnail {
         let button: AXUIElement
@@ -54,7 +55,7 @@ final class MissionControlPicker {
         }
         if let snapshot { refresh(snapshot) }
         let timer = Timer(timeInterval: 0.12, repeats: true) { [weak self] _ in
-            self?.refresh(Self.snapshot())
+            MainActor.assumeIsolated { self?.refresh(Self.snapshot()) }
         }
         RunLoop.main.add(timer, forMode: .common)
         self.timer = timer

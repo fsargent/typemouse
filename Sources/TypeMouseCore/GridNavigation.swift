@@ -1,15 +1,15 @@
 import CoreGraphics
 
 /// Grid coordinates use Quartz's top-left origin, including displays above the primary display.
-public struct GridNavigation {
-    public enum Hand: String, Codable, CaseIterable {
+public struct GridNavigation: Sendable {
+    public enum Hand: String, Codable, CaseIterable, Sendable {
         case left, right
 
         var keys: [Character] { Array(self == .left ? "wersdfxcv" : "uiojklm,.") }
         var other: Hand { self == .left ? .right : .left }
     }
 
-    public struct Region: Equatable {
+    public struct Region: Equatable, Sendable {
         public let frame: CGRect
         public let keys: [Character]
 

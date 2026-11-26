@@ -17,6 +17,5 @@ let package = Package(
             ]
         ),
         .testTarget(name: "TypeMouseCoreTests", dependencies: ["TypeMouseCore"]),
-    ],
-    swiftLanguageModes: [.v5]
+    ]
 )

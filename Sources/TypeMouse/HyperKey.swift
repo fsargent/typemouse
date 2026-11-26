@@ -9,7 +9,7 @@ import TypeMouseCore
 ///
 /// The tap runs only while the setting is on. The remap is removed when the setting turns off
 /// and when TypeMouse quits.
-final class HyperKey {
+final class HyperKey: @unchecked Sendable {
     private var tap: CFMachPort?
     private var thread: Thread?
     private let lock = NSLock()
@@ -95,10 +95,10 @@ final class HyperKey {
                 userInfo: Unmanaged.passUnretained(self).toOpaque())
         else { return false }
         self.tap = tap
-        let source = CFMachPortCreateRunLoopSource(nil, tap, 0)
+        let boxedSource = UnsafeSendable(value: CFMachPortCreateRunLoopSource(nil, tap, 0))
         // Its own thread, like the key capture tap: a slow main thread must not delay typing.
         let t = Thread {
-            CFRunLoopAddSource(CFRunLoopGetCurrent(), source, .commonModes)
+            CFRunLoopAddSource(CFRunLoopGetCurrent(), boxedSource.value, .commonModes)
             CFRunLoopRun()
         }
         t.name = "typemouse.hyperkey"

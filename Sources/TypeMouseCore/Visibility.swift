@@ -2,7 +2,7 @@ import CoreGraphics
 
 /// Finds where to put a label on each window that is at least partly visible.
 public enum Visibility {
-    public struct Window: Equatable {
+    public struct Window: Equatable, Sendable {
         public let id: UInt32
         public let frame: CGRect
 
@@ -12,7 +12,7 @@ public enum Visibility {
         }
     }
 
-    public struct Placement: Equatable {
+    public struct Placement: Equatable, Sendable {
         /// The center of `area`. The label goes here.
         public let point: CGPoint
         /// The largest rectangle of the window that no window in front covers.

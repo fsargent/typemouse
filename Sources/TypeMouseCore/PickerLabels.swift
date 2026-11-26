@@ -3,7 +3,7 @@
 ///
 /// The labels are prefix-free: a one-letter label never starts a longer one.
 public enum PickerLabels {
-    public struct Item: Equatable {
+    public struct Item: Equatable, Sendable {
         public let windowID: UInt32
         public let appID: String  // bundle identifier, or name when there is none
         public let appName: String

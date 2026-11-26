@@ -2,6 +2,7 @@ import AppKit
 import TypeMouseCore
 
 /// Refines a screen area without moving windows or taking focus from the target app.
+@MainActor
 final class GridMode {
     private enum Phase: String { case grid, choosingScrollArea, scroll }
     private var phase: Phase?
@@ -31,19 +32,25 @@ final class GridMode {
         screenObserver = NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main
         ) { [weak self] _ in
-            guard let self, self.isActive, NSScreen.screens.map(\.frame) != self.screenFrames else { return }
-            // A removed display invalidates the old target and scroll location.
-            self.exit(movePointer: false)
+            MainActor.assumeIsolated {
+                guard let self, self.isActive, NSScreen.screens.map(\.frame) != self.screenFrames else { return }
+                // A removed display invalidates the old target and scroll location.
+                self.exit(movePointer: false)
+            }
         }
         sleepObserver = NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.willSleepNotification, object: nil, queue: .main
-        ) { [weak self] _ in self?.exit(movePointer: false) }
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.exit(movePointer: false) }
+        }
     }
 
     deinit {
-        timer?.invalidate()
-        if let screenObserver { NotificationCenter.default.removeObserver(screenObserver) }
-        if let sleepObserver { NSWorkspace.shared.notificationCenter.removeObserver(sleepObserver) }
+        MainActor.assumeIsolated {
+            timer?.invalidate()
+            if let screenObserver { NotificationCenter.default.removeObserver(screenObserver) }
+            if let sleepObserver { NSWorkspace.shared.notificationCenter.removeObserver(sleepObserver) }
+        }
     }
 
     func update(config: Config) {
@@ -118,7 +125,9 @@ final class GridMode {
             if timer == nil {
                 lastTick = ProcessInfo.processInfo.systemUptime
                 scroll(elapsed: 1.0 / 60)
-                let timer = Timer(timeInterval: 1.0 / 60, repeats: true) { [weak self] _ in self?.tick() }
+                let timer = Timer(timeInterval: 1.0 / 60, repeats: true) { [weak self] _ in
+                    MainActor.assumeIsolated { self?.tick() }
+                }
                 RunLoop.main.add(timer, forMode: .common)
                 self.timer = timer
             }

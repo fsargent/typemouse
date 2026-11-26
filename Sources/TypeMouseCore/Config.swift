@@ -2,8 +2,8 @@ import Foundation
 
 /// User configuration, read from ~/.config/typemouse/config.json.
 /// Every key is optional. Missing keys keep their defaults.
-public struct Config: Codable, Equatable {
-    public enum Mode: String, CaseIterable {
+public struct Config: Codable, Equatable, Sendable {
+    public enum Mode: String, CaseIterable, Sendable {
         case click, search, windowSelection, windowList, windowPicker, missionControl, grid, scroll, windowManagement
 
         var parent: Mode? {
@@ -19,7 +19,7 @@ public struct Config: Codable, Equatable {
     /// Each mode can have several hotkeys. In the file, a mode takes one string ("hyper+k"),
     /// a list (["hyper+k", "hyper+backspace"]), or [] / "" for no hotkey.
     /// A missing key keeps the default.
-    public struct Hotkeys: Codable, Equatable {
+    public struct Hotkeys: Codable, Equatable, Sendable {
         public var click = ["hyper+j"]
         /// No default: search is also one key away inside click mode (/ or Tab).
         public var search: [String] = []
@@ -90,7 +90,7 @@ public struct Config: Codable, Equatable {
     }
 
     /// How to click a target in a given app.
-    public enum ClickStrategy: String, Codable, Equatable {
+    public enum ClickStrategy: String, Codable, Equatable, Sendable {
         /// AXPress first, then a synthetic mouse click when AXPress fails. Web content always gets a mouse click.
         case auto
         /// Always AXPress (does not move the mouse).

@@ -16,8 +16,8 @@ public enum KeyCode {
 }
 
 /// Parses hotkey strings like "hyper+space" or "cmd+shift+k".
-public struct HotkeySpec: Equatable, CustomStringConvertible {
-    public struct Modifiers: OptionSet, Hashable {
+public struct HotkeySpec: Equatable, CustomStringConvertible, Sendable {
+    public struct Modifiers: OptionSet, Hashable, Sendable {
         public let rawValue: Int
         public init(rawValue: Int) { self.rawValue = rawValue }
         public static let command = Modifiers(rawValue: 1 << 0)

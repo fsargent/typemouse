@@ -106,11 +106,12 @@ enum AX {
     }
 
     static func isTrusted(prompt: Bool) -> Bool {
-        let key = kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String
+        let key = "AXTrustedCheckOptionPrompt"
         return AXIsProcessTrustedWithOptions([key: prompt] as CFDictionary)
     }
 
     /// Union of all screens in AX coordinates.
+    @MainActor
     static func desktopBounds() -> CGRect {
         let primaryHeight = NSScreen.screens.first?.frame.height ?? 0
         return NSScreen.screens.reduce(CGRect.null) {
@@ -118,7 +119,28 @@ enum AX {
         }
     }
 
+    @MainActor
     static var primaryHeight: CGFloat { NSScreen.screens.first?.frame.height ?? 0 }
+}
+
+/// Wraps a non-Sendable CF/AppKit reference that is safe to pass across thread boundaries.
+struct UnsafeSendable<Value>: @unchecked Sendable {
+    let value: Value
+}
+
+/// A thread-safe indexed buffer for `DispatchQueue.concurrentPerform`.
+final class ConcurrentArray<Element>: @unchecked Sendable {
+    private var storage: [Element]
+
+    init(repeating value: Element, count: Int) {
+        storage = [Element](repeating: value, count: count)
+    }
+
+    func set(_ value: Element, at index: Int) {
+        storage[index] = value
+    }
+
+    var values: [Element] { storage }
 }
 
 /// Chromium and Electron build their accessibility tree only when asked.

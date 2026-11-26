@@ -1,7 +1,7 @@
 import AppKit
-import ServiceManagement
 import TypeMouseCore
 
+@MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let capture = KeyCapture()
     private let hotkeys = HotkeyManager()
@@ -55,8 +55,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         if !startCapture(prompt: true) {
             // Poll until the user grants Accessibility permission in System Settings.
-            permissionTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] t in
-                if self?.startCapture(prompt: false) == true { t.invalidate() }
+            permissionTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
+                MainActor.assumeIsolated {
+                    if self?.startCapture(prompt: false) == true {
+                        self?.permissionTimer?.invalidate()
+                        self?.permissionTimer = nil
+                    }
+                }
             }
         }
 
@@ -65,20 +70,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Other tools can turn AXEnhancedUserInterface off. Turn it back on early, so the browser
         // has rebuilt its page tree before the next hotkey press.
         flagTimer = Timer.scheduledTimer(withTimeInterval: 3, repeats: true) { [weak self] _ in
-            guard let self, !self.hints.isActive, let front = NSWorkspace.shared.frontmostApplication,
-                self.config.enhancedUserInterfaceApps.contains(front.bundleIdentifier ?? "")
-            else { return }
-            AccessibilityActivator.activate(front, enhanced: true)
+            MainActor.assumeIsolated {
+                guard let self, !self.hints.isActive, let front = NSWorkspace.shared.frontmostApplication,
+                    self.config.enhancedUserInterfaceApps.contains(front.bundleIdentifier ?? "")
+                else { return }
+                AccessibilityActivator.activate(front, enhanced: true)
+            }
         }
         NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didActivateApplicationNotification,
             object: nil, queue: .main
-        ) { [weak self] n in
-            guard let app = n.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication else { return }
-            self?.hints.appDidActivate(app)
-            // Wake Chromium/Electron trees early, so the first scan is not empty.
-            AccessibilityActivator.activate(
-                app, enhanced: self?.config.enhancedUserInterfaceApps.contains(app.bundleIdentifier ?? "") ?? false)
+        ) { [weak self] note in
+            let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
+            MainActor.assumeIsolated {
+                guard let app else { return }
+                self?.hints.appDidActivate(app)
+                // Wake Chromium/Electron trees early, so the first scan is not empty.
+                let enhanced = self?.config.enhancedUserInterfaceApps.contains(app.bundleIdentifier ?? "") ?? false
+                AccessibilityActivator.activate(app, enhanced: enhanced)
+            }
         }
         watchConfig()
         installSignalHandlers()
@@ -402,79 +412,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
-enum ConfigStore {
-    static let url = FileManager.default.homeDirectoryForCurrentUser
-        .appendingPathComponent(".config/typemouse/config.json")
-
-    @discardableResult
-    static func save(_ config: Config) -> Bool {
-        do {
-            try config.encoded().write(to: url, options: .atomic)
-            return true
-        } catch {
-            Log.info("config save failed: \(error)")
-            return false
-        }
-    }
-
-    static func load() -> Config {
-        let fm = FileManager.default
-        if !fm.fileExists(atPath: url.path) {
-            try? fm.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try? Config().encoded().write(to: url)
-        }
-        guard let data = try? Data(contentsOf: url) else { return Config() }
-        do {
-            return try Config.decode(data)
-        } catch {
-            Log.info("config error, using defaults: \(error)")
-            return Config()
-        }
-    }
-}
-
-enum Log {
-    static let url = FileManager.default.homeDirectoryForCurrentUser
-        .appendingPathComponent("Library/Logs/TypeMouse/typemouse.log")
-    private static let maxBytes: UInt64 = 1_048_576
-    private static let queue = DispatchQueue(label: "typemouse.log")
-    private static let formatter: ISO8601DateFormatter = {
-        let f = ISO8601DateFormatter()
-        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return f
-    }()
-    static var echo = false
-
-    /// Waits for pending writes. Call before exit().
-    static func flush() { queue.sync {} }
-
-    static func info(_ message: String) {
-        let now = Date()
-        let shouldEcho = echo
-        queue.async {
-            let line = "\(formatter.string(from: now)) \(message)\n"
-            let data = Data(line.utf8)
-            if shouldEcho { FileHandle.standardError.write(data) }
-            let fm = FileManager.default
-            if !fm.fileExists(atPath: url.path) {
-                try? fm.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-                fm.createFile(atPath: url.path, contents: nil)
-            } else if let attrs = try? fm.attributesOfItem(atPath: url.path),
-                let size = attrs[.size] as? UInt64, size >= maxBytes
-            {
-                let backup = url.appendingPathExtension("1")
-                try? fm.removeItem(at: backup)
-                try? fm.moveItem(at: url, to: backup)
-                fm.createFile(atPath: url.path, contents: nil)
-            }
-            guard let h = try? FileHandle(forWritingTo: url) else { return }
-            h.seekToEndOfFile()
-            h.write(data)
-            try? h.close()
-        }
-    }
-}
-
 extension AppDelegate: NSMenuDelegate {
     func menuWillOpen(_ menu: NSMenu) {
         loginMenuItem?.state = LoginItem.isEnabled ? .on : .off
@@ -484,29 +421,5 @@ extension AppDelegate: NSMenuDelegate {
             let shown = config.hotkeys[keyPath: keyPath].map { HotkeySpec($0)?.displayString ?? $0 }
             item.title = shown.isEmpty ? "\(title)  (no hotkey)" : "\(title)  (\(shown.joined(separator: " or ")))"
         }
-    }
-}
-
-/// Starts TypeMouse at login through SMAppService (macOS 13+).
-enum LoginItem {
-    private static let didSetUpKey = "loginItemSetUp"
-
-    static var isEnabled: Bool { SMAppService.mainApp.status == .enabled }
-
-    static func set(_ on: Bool) {
-        do {
-            if on { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }
-            Log.info("launch at login: \(on ? "on" : "off") (status \(SMAppService.mainApp.status.rawValue))")
-        } catch {
-            Log.info("launch at login change failed: \(error)")
-        }
-    }
-
-    /// Turns the login item on once. After that, the menu toggle is the user's choice.
-    static func enableOnFirstLaunch() {
-        let defaults = UserDefaults.standard
-        guard !defaults.bool(forKey: didSetUpKey) else { return }
-        defaults.set(true, forKey: didSetUpKey)
-        if !isEnabled { set(true) }
     }
 }

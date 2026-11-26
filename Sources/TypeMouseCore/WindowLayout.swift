@@ -1,6 +1,6 @@
 import CoreGraphics
 
-public enum WindowCommand: String, CaseIterable {
+public enum WindowCommand: String, CaseIterable, Sendable {
     case topLeft, top, topRight, left, center, right, bottomLeft, bottom, bottomRight, nextDisplay
 
     public var title: String {

@@ -2,6 +2,7 @@ import AppKit
 import TypeMouseCore
 
 /// Click mode (type a label) and search mode (type text, Enter to click).
+@MainActor
 final class HintMode {
     enum Phase { case labels, search }
 
@@ -57,31 +58,38 @@ final class HintMode {
 
         let config = config
         let enhanced = config.enhancedUserInterfaceApps.contains(app.bundleIdentifier ?? "")
+        let desktop = AX.desktopBounds()
         if enhanced && app.processIdentifier != ProcessInfo.processInfo.processIdentifier {
             isLoading = true
-            let desktop = AX.desktopBounds()
             let fallbackDeadline = DispatchTime.now() + 0.85
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
                 guard let self, self.scanID == id, self.isLoading else { return }
                 self.overlay.render([], banner: "Loading controls in \(app.localizedName ?? "browser")…")
             }
-            DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-                let result = ElementProvider().collect(app: app, config: config, desktop: desktop) { fallback in
-                    DispatchQueue.main.asyncAfter(deadline: fallbackDeadline) { [weak self] in
+            let boxedApp = UnsafeSendable(value: app)
+            let onFallback: @Sendable (ElementProvider.Result) -> Void = { [weak self] fallback in
+                DispatchQueue.main.asyncAfter(deadline: fallbackDeadline) {
+                    MainActor.assumeIsolated {
                         guard let self, self.scanID == id, self.isLoading, !fallback.targets.isEmpty else { return }
                         Log.info("Showing browser controls while the page tree loads")
-                        self.finishScan(fallback, app: app, id: id)
+                        self.finishScan(fallback, app: boxedApp.value, id: id)
                     }
                 }
-                DispatchQueue.main.async { [weak self] in
-                    guard let self, self.scanID == id, !self.interactedWithLabels else { return }
-                    if self.isLoading || result.menuOpen || result.targets.contains(where: \.inWebArea) {
-                        self.finishScan(result, app: app, id: id)
+            }
+            DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+                let result = ElementProvider().collect(
+                    app: boxedApp.value, config: config, desktop: desktop, browserFallback: onFallback)
+                DispatchQueue.main.async {
+                    MainActor.assumeIsolated {
+                        guard let self, self.scanID == id, !self.interactedWithLabels else { return }
+                        if self.isLoading || result.menuOpen || result.targets.contains(where: \.inWebArea) {
+                            self.finishScan(result, app: boxedApp.value, id: id)
+                        }
                     }
                 }
             }
         } else {
-            finishScan(ElementProvider().collect(app: app, config: config), app: app, id: id)
+            finishScan(ElementProvider().collect(app: app, config: config, desktop: desktop), app: app, id: id)
         }
     }
 
