@@ -134,6 +134,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func arrangeWindow(_ command: WindowCommand) {
         guard config.isModeEnabled(.windowManagement), AX.isTrusted(prompt: true) else { return }
+        Log.info("window management \(command.rawValue) in \(NSWorkspace.shared.frontmostApplication?.localizedName ?? "?")")
         hints.exit()
         windows.exit()
         picker.exit()
