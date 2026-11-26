@@ -122,7 +122,7 @@ public struct Config: Codable, Equatable {
     public var labelFontSize: Double = 12
     public var gridHand: GridNavigation.Hand = .right
     public var scrollKeys: ScrollKeys = .vim
-    /// Scroll distance in points per second. Shift multiplies this by three.
+    /// Scroll distance in points per second. Shift multiplies this by three. Command + Shift multiplies it by six.
     public var scrollSpeed = 600
 
     /// Chromium browsers build the web page tree only when AXEnhancedUserInterface is on.
@@ -152,8 +152,8 @@ public struct Config: Codable, Equatable {
         prioritizeLabels = try c.decodeIfPresent(Bool.self, forKey: .prioritizeLabels) ?? d.prioritizeLabels
         capsLockToHyper = try c.decodeIfPresent(Bool.self, forKey: .capsLockToHyper) ?? d.capsLockToHyper
         chainModeByDefault = try c.decodeIfPresent(Bool.self, forKey: .chainModeByDefault) ?? d.chainModeByDefault
-        chainDelayMs = max(0, try c.decodeIfPresent(Int.self, forKey: .chainDelayMs) ?? d.chainDelayMs)
-        labelFontSize = try c.decodeIfPresent(Double.self, forKey: .labelFontSize) ?? d.labelFontSize
+        chainDelayMs = min(5000, max(0, try c.decodeIfPresent(Int.self, forKey: .chainDelayMs) ?? d.chainDelayMs))
+        labelFontSize = min(48, max(8, try c.decodeIfPresent(Double.self, forKey: .labelFontSize) ?? d.labelFontSize))
         gridHand = try c.decodeIfPresent(GridNavigation.Hand.self, forKey: .gridHand) ?? d.gridHand
         scrollKeys = try c.decodeIfPresent(ScrollKeys.self, forKey: .scrollKeys) ?? d.scrollKeys
         scrollSpeed = min(5000, max(50, try c.decodeIfPresent(Int.self, forKey: .scrollSpeed) ?? d.scrollSpeed))

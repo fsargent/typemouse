@@ -54,6 +54,7 @@ final class GridMode {
             return
         }
         navigation?.preferredHand = config.gridHand
+        overlay.fontSize = CGFloat(config.labelFontSize)
         if isActive { render() }
     }
 
@@ -71,12 +72,12 @@ final class GridMode {
     func startChoosingScrollArea() {
         screenFrames = NSScreen.screens.map(\.frame)
         phase = .choosingScrollArea
+        overlay.fontSize = CGFloat(config.labelFontSize)
         capture.setActive(true)
         let targets = NSWorkspace.shared.frontmostApplication.map {
             ScrollAreas.collect(app: $0, config: config, displays: quartzScreens)
         } ?? []
-        let alphabet = Array(config.hintCharacters)
-        let labels = Hints.generate(count: targets.count, alphabet: alphabet)
+        let labels = Hints.generate(count: targets.count, alphabet: config.hintAlphabet)
         scrollAreas = Array(zip(labels, targets))
         Log.info("scroll area picker found \(targets.count) targets")
         render()
@@ -163,6 +164,8 @@ final class GridMode {
         } else if scrollAreas.contains(where: { $0.label.hasPrefix(next) }) {
             prefix = next
             render()
+        } else if !scrollAreas.isEmpty {
+            NSSound.beep()
         }
     }
 

@@ -164,7 +164,8 @@ final class MissionControlPicker {
         guard attempts > 0, !capture.active else { return }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.07) { [weak self] in
             guard let self, !self.capture.active else { return }
-            guard let app = NSWorkspace.shared.frontmostApplication, app.bundleIdentifier == target.appID,
+            guard let app = NSWorkspace.shared.frontmostApplication,
+                  (app.bundleIdentifier ?? app.localizedName ?? "") == target.appID,
                   app.processIdentifier != ProcessInfo.processInfo.processIdentifier, Self.snapshot() == nil else {
                 self.finishSelection(target, attempts: attempts - 1)
                 return

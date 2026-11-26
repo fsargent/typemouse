@@ -17,7 +17,7 @@ struct KeyEvent {
     var hyperHeld: Bool { shift && command && option && control }
 
     /// Main thread only. Reads the character with no modifiers, so Shift+; is still ";".
-    /// Shift means right-click in click mode, so it must not change the character.
+    /// Shift chains clicks in click mode, so it must not change the character.
     init(keyCode: Int64, flags: CGEventFlags, isRepeat: Bool = false) {
         dispatchPrecondition(condition: .onQueue(.main))
         self.keyCode = keyCode

@@ -75,6 +75,7 @@ public enum WindowLayout {
 
     /// Keep a window's relative size and position when the displays differ in size.
     public static func move(_ frame: CGRect, from source: CGRect, to destination: CGRect) -> CGRect {
+        guard source.width > 0, source.height > 0 else { return destination }
         let width = min(1, frame.width / source.width)
         let height = min(1, frame.height / source.height)
         let x = min(max(0, (frame.minX - source.minX) / source.width), 1 - width)

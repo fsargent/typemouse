@@ -49,6 +49,7 @@ final class WindowLayoutTests: XCTestCase {
         let tile = CGRect(x: -600, y: -150, width: 600, height: 450)
         XCTAssertEqual(WindowLayout.move(tile, from: display, to: right),
                        CGRect(x: 960, y: 538, width: 960, height: 510))
+        XCTAssertEqual(WindowLayout.move(tile, from: .zero, to: right), right)
     }
 
     func testWindowHotkeysHaveDefaultsAndIndividualOverrides() throws {

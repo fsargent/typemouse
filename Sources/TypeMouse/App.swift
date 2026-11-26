@@ -16,7 +16,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private lazy var picker = WindowPicker(capture: capture, config: config)
     private lazy var grid = GridMode(capture: capture, config: config)
     private var statusItem: NSStatusItem?
-    private var configWatcher: DispatchSourceFileSystemObject?
+    private var configDirWatcher: DispatchSourceFileSystemObject?
+    private var configFileWatcher: DispatchSourceFileSystemObject?
+    private var signalSources: [DispatchSourceSignal] = []
     private var permissionTimer: Timer?
     private var flagTimer: Timer?
     private var loginMenuItem: NSMenuItem?
@@ -75,6 +77,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             AccessibilityActivator.activate(app, enhanced: self?.config.enhancedUserInterfaceApps.contains(app.bundleIdentifier ?? "") ?? false)
         }
         watchConfig()
+        installSignalHandlers()
         LoginItem.enableOnFirstLaunch()
     }
 
@@ -327,13 +330,51 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func watchConfig() {
-        let fd = open(ConfigStore.url.deletingLastPathComponent().path, O_EVTONLY)
-        guard fd >= 0 else { return }
-        let src = DispatchSource.makeFileSystemObjectSource(fileDescriptor: fd, eventMask: [.write, .rename], queue: .main)
-        src.setEventHandler { [weak self] in self?.applyConfig(ConfigStore.load()) }
-        src.setCancelHandler { close(fd) }
+        let dirFD = open(ConfigStore.url.deletingLastPathComponent().path, O_EVTONLY)
+        if dirFD >= 0 {
+            let src = DispatchSource.makeFileSystemObjectSource(fileDescriptor: dirFD, eventMask: [.write, .rename], queue: .main)
+            src.setEventHandler { [weak self] in
+                self?.watchConfigFile()
+                self?.applyConfig(ConfigStore.load())
+            }
+            src.setCancelHandler { close(dirFD) }
+            src.resume()
+            configDirWatcher = src
+        }
+        watchConfigFile()
+    }
+
+    private func watchConfigFile() {
+        configFileWatcher?.cancel()
+        configFileWatcher = nil
+        let fileFD = open(ConfigStore.url.path, O_EVTONLY)
+        guard fileFD >= 0 else { return }
+        let src = DispatchSource.makeFileSystemObjectSource(
+            fileDescriptor: fileFD,
+            eventMask: [.write, .rename, .delete],
+            queue: .main
+        )
+        src.setEventHandler { [weak self] in
+            let flags = src.data
+            self?.applyConfig(ConfigStore.load())
+            if flags.contains(.rename) || flags.contains(.delete) {
+                self?.watchConfigFile()
+            }
+        }
+        src.setCancelHandler { close(fileFD) }
         src.resume()
-        configWatcher = src
+        configFileWatcher = src
+    }
+
+    /// Ensures `pkill` / `SIGTERM` runs `applicationWillTerminate` so Caps Lock is restored.
+    private func installSignalHandlers() {
+        for sig in [SIGTERM, SIGINT] {
+            signal(sig, SIG_IGN)
+            let src = DispatchSource.makeSignalSource(signal: sig, queue: .main)
+            src.setEventHandler { NSApp.terminate(nil) }
+            src.resume()
+            signalSources.append(src)
+        }
     }
 }
 
@@ -371,6 +412,7 @@ enum ConfigStore {
 enum Log {
     static let url = FileManager.default.homeDirectoryForCurrentUser
         .appendingPathComponent("Library/Logs/TypeMouse/typemouse.log")
+    private static let maxBytes: UInt64 = 1_048_576
     private static let queue = DispatchQueue(label: "typemouse.log")
     private static let formatter: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
@@ -383,17 +425,26 @@ enum Log {
     static func flush() { queue.sync {} }
 
     static func info(_ message: String) {
-        let line = "\(formatter.string(from: Date())) \(message)\n"
-        if echo { FileHandle.standardError.write(Data(line.utf8)) }
+        let now = Date()
+        let shouldEcho = echo
         queue.async {
+            let line = "\(formatter.string(from: now)) \(message)\n"
+            let data = Data(line.utf8)
+            if shouldEcho { FileHandle.standardError.write(data) }
             let fm = FileManager.default
             if !fm.fileExists(atPath: url.path) {
                 try? fm.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
                 fm.createFile(atPath: url.path, contents: nil)
+            } else if let attrs = try? fm.attributesOfItem(atPath: url.path),
+                      let size = attrs[.size] as? UInt64, size >= maxBytes {
+                let backup = url.appendingPathExtension("1")
+                try? fm.removeItem(at: backup)
+                try? fm.moveItem(at: url, to: backup)
+                fm.createFile(atPath: url.path, contents: nil)
             }
             guard let h = try? FileHandle(forWritingTo: url) else { return }
             h.seekToEndOfFile()
-            h.write(Data(line.utf8))
+            h.write(data)
             try? h.close()
         }
     }

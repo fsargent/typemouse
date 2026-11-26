@@ -125,8 +125,9 @@ final class Overlay {
         let fg = highlighted ? NSColor.white : NSColor.black
         let s = NSMutableAttributedString(string: spec.text.uppercased(), attributes: [.font: font, .foregroundColor: fg])
         if spec.typedCount > 0 {
+            let typedUTF16 = (String(spec.text.prefix(spec.typedCount)).uppercased() as NSString).length
             s.addAttribute(.foregroundColor, value: fg.withAlphaComponent(0.35),
-                           range: NSRange(location: 0, length: min(spec.typedCount, spec.text.count)))
+                           range: NSRange(location: 0, length: min(typedUTF16, s.length)))
         }
         let textSize = s.size()
         let pad = CGSize(width: 4 * k, height: 1 * k)
