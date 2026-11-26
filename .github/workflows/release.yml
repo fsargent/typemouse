@@ -147,7 +147,7 @@ jobs:
             echo "::warning::HOMEBREW_TAP_DEPLOY_KEY is not set. The Homebrew tap was not updated."
             exit 0
           fi
-          if [[ "$(gh release view --json tagName --jq .tagName)" != "$GITHUB_REF_NAME" ]]; then
+          if [[ "$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName)" != "$GITHUB_REF_NAME" ]]; then
             echo "The tap tracks the latest published release."
             exit 0
           fi
@@ -204,7 +204,7 @@ jobs:
             echo "The cask is already on $VERSION."
             exit 0
           fi
-          if [[ "$(gh release view --json tagName --jq .tagName)" != "$GITHUB_REF_NAME" ]]; then
+          if [[ "$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName)" != "$GITHUB_REF_NAME" ]]; then
             echo "A newer release is available. Its run will update the tap."
             exit 0
           fi
