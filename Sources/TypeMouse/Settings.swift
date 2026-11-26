@@ -1,10 +1,12 @@
 import AppKit
+import Observation
 import SwiftUI
 import TypeMouseCore
 import UniformTypeIdentifiers
 
 /// The settings window. It edits the same config file that TypeMouse watches,
 /// so a change in the window and a change in the file have the same effect.
+@MainActor
 final class SettingsWindowController: NSObject, NSWindowDelegate {
     private var window: NSWindow?
     private let model: SettingsModel
@@ -55,7 +57,9 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
     }
 }
 
-final class SettingsModel: ObservableObject {
+@MainActor
+@Observable
+final class SettingsModel {
     enum Mode: String, CaseIterable, Identifiable {
         case click = "Click mode"
         case search = "Search mode"
@@ -113,12 +117,12 @@ final class SettingsModel: ObservableObject {
 
     static let slotsPerMode = 2
 
-    @Published var config: Config
-    @Published var launchAtLogin = LoginItem.isEnabled
-    @Published private(set) var recordingSlot: Slot?
-    private let save: (Config) -> Void
-    private let recording: (Bool) -> Void
-    private var monitor: Any?
+    var config: Config
+    var launchAtLogin = LoginItem.isEnabled
+    private(set) var recordingSlot: Slot?
+    @ObservationIgnored private let save: (Config) -> Void
+    @ObservationIgnored private let recording: (Bool) -> Void
+    @ObservationIgnored private var monitor: Any?
 
     init(config: Config, save: @escaping (Config) -> Void, recording: @escaping (Bool) -> Void) {
         self.config = config
@@ -308,7 +312,7 @@ struct SettingsView: View {
         }
     }
 
-    @ObservedObject var model: SettingsModel
+    let model: SettingsModel
     @State private var selection: Page? = .general
     @State private var hintCharacters = ""
 
@@ -1096,7 +1100,7 @@ private struct KeycapGridView: View {
 // MARK: - Pinned Apps
 
 private struct PinnedAppsSettings: View {
-    @ObservedObject var model: SettingsModel
+    let model: SettingsModel
     @State private var pinMessage = ""
     @State private var showPinMessage = false
 

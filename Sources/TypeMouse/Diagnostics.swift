@@ -2,6 +2,7 @@ import AppKit
 import TypeMouseCore
 
 /// Command-line diagnostics, so problems in a specific app can be seen and measured.
+@MainActor
 enum Diagnostics {
     static func dump(_ args: [String]) -> Int32 {
         Log.echo = true
@@ -39,9 +40,10 @@ enum Diagnostics {
             print("AXEnhancedUserInterface turned off")
             return 0
         }
-        var result = ElementProvider().collect(app: app, config: config)
+        let desktop = AX.desktopBounds()
+        var result = ElementProvider().collect(app: app, config: config, desktop: desktop)
         // A second scan shows the warm time (Chromium and Electron build their tree on the first request).
-        let warm = ElementProvider().collect(app: app, config: config)
+        let warm = ElementProvider().collect(app: app, config: config, desktop: desktop)
         ElementProvider.resolveText(&result.targets)
         let labels = Hints.spread(
             Hints.generate(count: result.targets.count, alphabet: config.hintAlphabet), alphabet: config.hintAlphabet)

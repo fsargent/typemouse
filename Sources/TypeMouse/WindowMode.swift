@@ -8,6 +8,7 @@ import TypeMouseCore
 /// - Enter focuses the highlighted row. The default row is the previous window, so
 ///   hotkey + Enter toggles between the two most recent windows.
 /// - ⌘W closes, ⌘M minimizes, ⌘H hides, ⌘Q quits the highlighted row's window or app.
+@MainActor
 final class WindowMode {
     struct Row {
         let info: WindowInfo?
@@ -267,6 +268,7 @@ final class WindowMode {
 }
 
 /// The switcher panel. It never becomes key. Keys arrive through the event tap.
+@MainActor
 final class WindowPanel {
     private let window: NSPanel
     private let stack = NSStackView()

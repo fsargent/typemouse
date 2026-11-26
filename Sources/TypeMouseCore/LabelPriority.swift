@@ -6,7 +6,7 @@ import CoreGraphics
 /// (real controls first, "weak" elements such as bare click listeners last), but uses the
 /// rank only to remove duplicates. TypeMouse uses a similar rank to order labels.
 public enum LabelPriority {
-    public enum Tier: Int, Comparable {
+    public enum Tier: Int, Comparable, Sendable {
         case button = 0, field, link, other, appUI, menuBar
 
         public static func < (a: Tier, b: Tier) -> Bool { a.rawValue < b.rawValue }
@@ -24,7 +24,7 @@ public enum LabelPriority {
         "AXGroup", "AXImage", "AXStaticText", "AXGenericElement", "AXUnknown", "AXList",
     ]
 
-    public struct Candidate {
+    public struct Candidate: Sendable {
         public let frame: CGRect
         public let role: String
 

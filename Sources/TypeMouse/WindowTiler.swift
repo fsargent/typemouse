@@ -1,6 +1,7 @@
 import AppKit
 import TypeMouseCore
 
+@MainActor
 final class WindowTiler {
     private struct Placement {
         let window: AXUIElement

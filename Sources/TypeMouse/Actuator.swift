@@ -28,6 +28,7 @@ enum ClickKind {
 }
 
 /// Performs a click on a target, with AXPress or with a synthetic mouse event.
+@MainActor
 enum Actuator {
     static func perform(_ kind: ClickKind, on t: Target, strategy: Config.ClickStrategy, restoreMouse: Bool) {
         let point = CGPoint(x: t.frame.midX, y: t.frame.midY)

@@ -3,6 +3,7 @@ import TypeMouseCore
 
 /// Window picker: one label on each visible window of the current Space. Press it to focus that window.
 /// No list, no zoom, no animation. The windows stay where they are.
+@MainActor
 final class WindowPicker {
     struct Entry {
         let info: WindowInfo

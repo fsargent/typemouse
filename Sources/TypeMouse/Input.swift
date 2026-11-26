@@ -3,7 +3,7 @@ import Carbon
 import TypeMouseCore
 
 /// One key press, as the modes see it.
-struct KeyEvent {
+struct KeyEvent: Sendable {
     let keyCode: Int64
     /// Lowercased character, ignoring modifiers. Empty for non-character keys.
     let char: String
@@ -18,6 +18,7 @@ struct KeyEvent {
 
     /// Main thread only. Reads the character with no modifiers, so Shift+; is still ";".
     /// Shift chains clicks in click mode, so it must not change the character.
+    @MainActor
     init(keyCode: Int64, flags: CGEventFlags, isRepeat: Bool = false) {
         dispatchPrecondition(condition: .onQueue(.main))
         self.keyCode = keyCode
@@ -66,6 +67,7 @@ enum KeyTranslator {
 }
 
 /// Global hotkeys through Carbon. This is reliable and needs no permission.
+@MainActor
 final class HotkeyManager {
     private var refs: [EventHotKeyRef] = []
     private var handlers: [UInt32: () -> Void] = [:]
@@ -114,7 +116,7 @@ final class HotkeyManager {
                     event, EventParamName(kEventParamDirectObject), EventParamType(typeEventHotKeyID),
                     nil, MemoryLayout<EventHotKeyID>.size, nil, &hkID)
                 let me = Unmanaged<HotkeyManager>.fromOpaque(userData).takeUnretainedValue()
-                me.fire(hkID.id)
+                MainActor.assumeIsolated { me.fire(hkID.id) }
                 return noErr
             }, 1, &spec, Unmanaged.passUnretained(self).toOpaque(), nil)
     }
@@ -124,16 +126,18 @@ final class HotkeyManager {
 ///
 /// The tap lives on its own thread with its own run loop. The main thread can block
 /// on AX calls, and macOS disables taps whose callback is slow.
-final class KeyCapture {
-    var onKey: ((KeyEvent) -> Void)?
-    var onKeyUp: ((Int64) -> Void)?
-    var onFlagsChanged: ((CGEventFlags) -> Void)?
-    var onInterrupted: (() -> Void)?
+final class KeyCapture: @unchecked Sendable {
+    @MainActor var onKey: ((KeyEvent) -> Void)?
+    @MainActor var onKeyUp: ((Int64) -> Void)?
+    @MainActor var onFlagsChanged: ((CGEventFlags) -> Void)?
+    @MainActor var onInterrupted: (() -> Void)?
     private var tap: CFMachPort?
     private var thread: Thread?
     private let lock = NSLock()
     private var _active = false
     private var passthroughKeyUps: Set<Int64> = []
+
+    @MainActor init() {}
 
     var active: Bool {
         lock.withLock { _active }
@@ -155,9 +159,9 @@ final class KeyCapture {
         else { return false }
         CGEvent.tapEnable(tap: tap, enable: false)
         self.tap = tap
-        let source = CFMachPortCreateRunLoopSource(nil, tap, 0)
+        let boxedSource = UnsafeSendable(value: CFMachPortCreateRunLoopSource(nil, tap, 0))
         let t = Thread {
-            CFRunLoopAddSource(CFRunLoopGetCurrent(), source, .commonModes)
+            CFRunLoopAddSource(CFRunLoopGetCurrent(), boxedSource.value, .commonModes)
             CFRunLoopRun()
         }
         t.name = "typemouse.keytap"
@@ -182,7 +186,9 @@ final class KeyCapture {
 
     fileprivate func handle(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
-            DispatchQueue.main.async { [weak self] in self?.onInterrupted?() }
+            DispatchQueue.main.async { [weak self] in
+                MainActor.assumeIsolated { self?.onInterrupted?() }
+            }
             if active, let tap { CGEvent.tapEnable(tap: tap, enable: true) }
             return Unmanaged.passUnretained(event)
         }
@@ -193,16 +199,22 @@ final class KeyCapture {
             let flags = event.flags
             let isRepeat = event.getIntegerValueField(.keyboardEventAutorepeat) != 0
             DispatchQueue.main.async { [weak self] in
-                self?.onKey?(KeyEvent(keyCode: keyCode, flags: flags, isRepeat: isRepeat))
+                MainActor.assumeIsolated {
+                    self?.onKey?(KeyEvent(keyCode: keyCode, flags: flags, isRepeat: isRepeat))
+                }
             }
         } else if type == .keyUp {
             let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
-            DispatchQueue.main.async { [weak self] in self?.onKeyUp?(keyCode) }
+            DispatchQueue.main.async { [weak self] in
+                MainActor.assumeIsolated { self?.onKeyUp?(keyCode) }
+            }
             let pass = lock.withLock { passthroughKeyUps.remove(keyCode) != nil }
             if pass { return Unmanaged.passUnretained(event) }
         } else if type == .flagsChanged {
             let flags = event.flags
-            DispatchQueue.main.async { [weak self] in self?.onFlagsChanged?(flags) }
+            DispatchQueue.main.async { [weak self] in
+                MainActor.assumeIsolated { self?.onFlagsChanged?(flags) }
+            }
             return Unmanaged.passUnretained(event)
         }
         return nil

@@ -3,7 +3,7 @@ import ApplicationServices
 import TypeMouseCore
 
 /// A clickable thing on screen.
-struct Target {
+struct Target: @unchecked Sendable {
     let element: AXUIElement
     /// Visible part of the element, in AX (top-left origin) coordinates.
     let frame: CGRect
@@ -20,8 +20,8 @@ struct Target {
 }
 
 /// Walks the accessibility tree of the frontmost app and returns clickable targets.
-final class ElementProvider {
-    struct Result {
+final class ElementProvider: @unchecked Sendable {
+    struct Result: Sendable {
         var targets: [Target]
         var visited: Int
         var duration: TimeInterval
@@ -78,11 +78,10 @@ final class ElementProvider {
     private var scanInParallel = true
 
     func collect(
-        app: NSRunningApplication, config: Config, desktop: CGRect? = nil,
-        browserFallback: ((Result) -> Void)? = nil
+        app: NSRunningApplication, config: Config, desktop: CGRect,
+        browserFallback: (@Sendable (Result) -> Void)? = nil
     ) -> Result {
         let start = Date()
-        let desktop = desktop ?? AX.desktopBounds()
         prioritize = config.prioritizeLabels
         // Our own AX tree needs the main thread to answer requests.
         scanInParallel = app.processIdentifier != ProcessInfo.processInfo.processIdentifier
@@ -152,13 +151,12 @@ final class ElementProvider {
     /// Search mode needs text for elements that have no title. This costs extra IPC, so it runs only then.
     static func resolveText(_ targets: inout [Target]) {
         let snapshot = targets
-        var texts = [String](repeating: "", count: snapshot.count)
-        texts.withUnsafeMutableBufferPointer { buf in
-            DispatchQueue.concurrentPerform(iterations: snapshot.count) { i in
-                buf[i] = fallbackText(snapshot[i])
-            }
+        let texts = ConcurrentArray<String>(repeating: "", count: snapshot.count)
+        DispatchQueue.concurrentPerform(iterations: snapshot.count) { i in
+            texts.set(fallbackText(snapshot[i]), at: i)
         }
-        for i in targets.indices where targets[i].text.isEmpty { targets[i].text = texts[i] }
+        let resolved = texts.values
+        for i in targets.indices where targets[i].text.isEmpty { targets[i].text = resolved[i] }
     }
 
     private static func fallbackText(_ t: Target) -> String {
@@ -200,12 +198,14 @@ final class ElementProvider {
         let frame = AX.frame(position: v[kAXPositionAttribute], size: v[kAXSizeAttribute])
 
         // Prune anything outside the visible area. Elements with no frame (some groups) pass through.
-        var childClip = clip
+        let childClip: CGRect
         if let frame {
             let visible = frame.intersection(clip)
             if visible.isNull || visible.width < 1 || visible.height < 1 { return }
-            if !Self.passThroughRoles.contains(role) { childClip = visible }
+            childClip = Self.passThroughRoles.contains(role) ? clip : visible
             consider(el, role: role, values: v, visible: visible, depth: depth, inWeb: inWeb)
+        } else {
+            childClip = clip
         }
 
         // An empty answer is common for pages built from iframes. Walk the tree instead.
@@ -337,12 +337,13 @@ final class ElementProvider {
         return kept
     }
 
-    private func parallel<T>(_ items: [T], _ body: (T) -> Void) {
+    private func parallel<T>(_ items: [T], _ body: @Sendable (T) -> Void) {
         if !scanInParallel || items.count < 2 {
-            items.forEach(body)
+            for item in items { body(item) }
             return
         }
-        DispatchQueue.concurrentPerform(iterations: items.count) { body(items[$0]) }
+        let boxed = items.map(UnsafeSendable.init)
+        DispatchQueue.concurrentPerform(iterations: boxed.count) { body(boxed[$0].value) }
     }
 
     private func add(_ target: Target) {

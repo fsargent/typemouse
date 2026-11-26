@@ -21,6 +21,7 @@ struct LabelSpec {
 
 /// Click-through, transparent windows (one per screen) that draw labels with Core Animation.
 /// They never take focus, so the target app keeps its menus and popovers open.
+@MainActor
 final class Overlay {
     private var windows: [(screen: NSScreen, window: NSWindow)] = []
     private let windowLevel: NSWindow.Level

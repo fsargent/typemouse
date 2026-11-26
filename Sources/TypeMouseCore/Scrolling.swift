@@ -13,7 +13,7 @@ public enum ScrollViewport {
     }
 }
 
-public enum ScrollKeys: String, Codable, CaseIterable {
+public enum ScrollKeys: String, Codable, CaseIterable, Sendable {
     case vim, esdf, wasd, ijkl
 
     public var displayName: String {
@@ -45,7 +45,7 @@ public enum ScrollKeys: String, Codable, CaseIterable {
     }
 }
 
-public enum ScrollDirection: Equatable {
+public enum ScrollDirection: Equatable, Sendable {
     case up, left, down, right
 
     public var vector: ScrollVector {
@@ -58,7 +58,7 @@ public enum ScrollDirection: Equatable {
     }
 }
 
-public struct ScrollVector: Equatable {
+public struct ScrollVector: Equatable, Sendable {
     public var horizontal: Double
     public var vertical: Double
 

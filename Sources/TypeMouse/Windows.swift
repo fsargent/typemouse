@@ -2,7 +2,7 @@ import AppKit
 import ApplicationServices
 import TypeMouseCore
 
-struct WindowInfo {
+struct WindowInfo: @unchecked Sendable {
     let app: NSRunningApplication
     let window: AXUIElement?  // nil: pinned app that is not running, or running with no windows
     let id: CGWindowID?
@@ -15,6 +15,7 @@ struct WindowInfo {
 
 /// Lists windows through AX (titles without Screen Recording permission) and tracks
 /// most-recently-used order.
+@MainActor
 final class WindowProvider {
     static let shared = WindowProvider()
 
@@ -25,17 +26,21 @@ final class WindowProvider {
         seedFromZOrder()
         let nc = NSWorkspace.shared.notificationCenter
         nc.addObserver(forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main) {
-            [weak self] n in
-            guard let app = n.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication else { return }
-            self?.observe(app)
-            self?.noteFocusedWindow(of: app.processIdentifier)
+            [weak self] note in
+            let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
+            MainActor.assumeIsolated {
+                guard let app else { return }
+                self?.observe(app)
+                self?.noteFocusedWindow(of: app.processIdentifier)
+            }
         }
         nc.addObserver(forName: NSWorkspace.didTerminateApplicationNotification, object: nil, queue: .main) {
-            [weak self] n in
-            guard let app = n.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
-                let obs = self?.observers.removeValue(forKey: app.processIdentifier)
-            else { return }
-            CFRunLoopRemoveSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(obs), .defaultMode)
+            [weak self] note in
+            let pid = (note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication)?.processIdentifier
+            MainActor.assumeIsolated {
+                guard let pid, let obs = self?.observers.removeValue(forKey: pid) else { return }
+                CFRunLoopRemoveSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(obs), .defaultMode)
+            }
         }
         for app in NSWorkspace.shared.runningApplications where app.activationPolicy == .regular { observe(app) }
     }
@@ -61,11 +66,10 @@ final class WindowProvider {
             $0.activationPolicy == .regular && $0.processIdentifier != ownPID
                 && (only?.contains($0.processIdentifier) ?? true)
         }
-        var perApp = [[WindowInfo]](repeating: [], count: apps.count)
-        perApp.withUnsafeMutableBufferPointer { buf in
-            DispatchQueue.concurrentPerform(iterations: apps.count) { i in
-                buf[i] = Self.windows(of: apps[i])
-            }
+        let boxedApps = apps.map(UnsafeSendable.init)
+        let perApp = ConcurrentArray<[WindowInfo]>(repeating: [], count: boxedApps.count)
+        DispatchQueue.concurrentPerform(iterations: boxedApps.count) { i in
+            perApp.set(Self.windows(of: boxedApps[i].value), at: i)
         }
         let rank = Dictionary(mru.enumerated().map { ($1, $0) }, uniquingKeysWith: { a, _ in a })
         let z = Self.zOrder()
@@ -73,10 +77,10 @@ final class WindowProvider {
             guard let id = w.id else { return (2, Int.max, Int.max) }
             return (w.minimized ? 1 : 0, rank[id] ?? Int.max, z[id] ?? Int.max)
         }
-        return perApp.flatMap { $0 }.sorted { key($0) < key($1) }
+        return perApp.values.flatMap { $0 }.sorted { key($0) < key($1) }
     }
 
-    private static func windows(of app: NSRunningApplication) -> [WindowInfo] {
+    private nonisolated static func windows(of app: NSRunningApplication) -> [WindowInfo] {
         let appEl = AXUIElementCreateApplication(app.processIdentifier)
         return appEl.elements(kAXWindowsAttribute).compactMap { w in
             let v = w.values([kAXRoleAttribute, kAXSubroleAttribute, kAXTitleAttribute, kAXMinimizedAttribute])
@@ -117,7 +121,9 @@ final class WindowProvider {
         let cb: AXObserverCallback = { _, element, _, refcon in
             guard let refcon else { return }
             let me = Unmanaged<WindowProvider>.fromOpaque(refcon).takeUnretainedValue()
-            if let id = element.windowID { me.touch(id) }
+            if let id = element.windowID {
+                MainActor.assumeIsolated { me.touch(id) }
+            }
         }
         guard AXObserverCreate(pid, cb, &obs) == .success, let obs else { return }
         let appEl = AXUIElementCreateApplication(pid)
@@ -130,6 +136,7 @@ final class WindowProvider {
 }
 
 /// Window actions.
+@MainActor
 enum WindowActions {
     static func focus(_ w: WindowInfo) {
         if w.app.isHidden { w.app.unhide() }
@@ -170,16 +177,15 @@ enum SkyLight {
     private typealias PostEventFn =
         @convention(c) (UnsafeMutablePointer<ProcessSerialNumber>, UnsafeMutablePointer<UInt8>) -> CGError
 
-    private static let handle = dlopen("/System/Library/PrivateFrameworks/SkyLight.framework/SkyLight", RTLD_LAZY)
-    private static let setFront: SetFrontFn? = dlsym(handle, "_SLPSSetFrontProcessWithOptions").map {
-        unsafeBitCast($0, to: SetFrontFn.self)
-    }
-    private static let postEvent: PostEventFn? = dlsym(handle, "SLPSPostEventRecordTo").map {
-        unsafeBitCast($0, to: PostEventFn.self)
-    }
+    private static let symbols: (setFront: SetFrontFn?, postEvent: PostEventFn?) = {
+        let handle = dlopen("/System/Library/PrivateFrameworks/SkyLight.framework/SkyLight", RTLD_LAZY)
+        let setFront = dlsym(handle, "_SLPSSetFrontProcessWithOptions").map { unsafeBitCast($0, to: SetFrontFn.self) }
+        let postEvent = dlsym(handle, "SLPSPostEventRecordTo").map { unsafeBitCast($0, to: PostEventFn.self) }
+        return (setFront, postEvent)
+    }()
 
     static func makeFront(pid: pid_t, windowID: CGWindowID) -> Bool {
-        guard let setFront else { return false }
+        guard let setFront = symbols.setFront else { return false }
         var psn = ProcessSerialNumber()
         guard getProcessForPID(pid, &psn) == noErr else { return false }
         let userGenerated: UInt32 = 0x200
@@ -190,7 +196,7 @@ enum SkyLight {
 
     /// Sends the "make key window" event record. Byte layout from yabai.
     private static func makeKey(_ psn: inout ProcessSerialNumber, _ windowID: CGWindowID) {
-        guard let postEvent else { return }
+        guard let postEvent = symbols.postEvent else { return }
         var bytes = [UInt8](repeating: 0, count: 0xf8)
         bytes[0x04] = 0xf8
         bytes[0x3a] = 0x10
