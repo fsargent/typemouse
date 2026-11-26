@@ -161,12 +161,14 @@ final class SettingsModel: ObservableObject {
     /// Another slot (in any mode) with the same key combination, if any.
     func conflict(_ slot: Slot) -> Slot? {
         guard config.isModeEnabled(slot.feature),
-              let string = hotkey(slot),
-              let mine = HotkeySpec(string) else { return nil }
+            let string = hotkey(slot),
+            let mine = HotkeySpec(string)
+        else { return nil }
         let modes = Mode.allCases.filter { config.isModeEnabled($0.feature) }.flatMap { mode in
             hotkeys(mode).indices.map { Slot.mode(mode, $0) }
         }
-        let commands = config.isModeEnabled(.windowManagement)
+        let commands =
+            config.isModeEnabled(.windowManagement)
             ? WindowCommand.allCases.map { Slot.command($0) }
             : []
         return (modes + commands).first { other in
@@ -219,7 +221,8 @@ final class SettingsModel: ObservableObject {
         }
         // A hotkey with no modifier would take that key away from every app.
         guard !mods.isEmpty,
-              let string = HotkeySpec.configString(keyCode: UInt32(event.keyCode), modifiers: mods) else {
+            let string = HotkeySpec.configString(keyCode: UInt32(event.keyCode), modifiers: mods)
+        else {
             NSSound.beep()
             return
         }
@@ -457,14 +460,16 @@ struct SettingsView: View {
             SettingsSection("Keyboard") {
                 SettingsToggleRow(
                     "Use Caps Lock as Hyper",
-                    subtitle: "Combine Command, Control, Option, and Shift on Caps Lock. Leave off if Karabiner or kanata already maps Hyper.",
+                    subtitle:
+                        "Combine Command, Control, Option, and Shift on Caps Lock. Leave off if Karabiner or kanata already maps Hyper.",
                     isOn: setting(\.capsLockToHyper)
                 )
             }
 
             SettingsSection(
                 "Shared labels",
-                footer: "Used by click mode, window pickers, window list, and scroll picker. Earlier characters get priority."
+                footer:
+                    "Used by click mode, window pickers, window list, and scroll picker. Earlier characters get priority."
             ) {
                 SettingsRow("Hint characters") {
                     HStack(spacing: 8) {
@@ -530,7 +535,8 @@ struct SettingsView: View {
                 SettingsCardDivider()
                 SettingsToggleRow(
                     "Start in chain mode",
-                    subtitle: "Stay in click mode after every click. Press Space in click mode to toggle, or hold Shift for one chain click.",
+                    subtitle:
+                        "Stay in click mode after every click. Press Space in click mode to toggle, or hold Shift for one chain click.",
                     isOn: setting(\.chainModeByDefault)
                 )
                 SettingsCardDivider()
@@ -573,7 +579,8 @@ struct SettingsView: View {
             ) {
                 SettingsRow(
                     "Preferred hand",
-                    subtitle: "Used on a single display and for refinements. Two displays map left and right hands automatically."
+                    subtitle:
+                        "Used on a single display and for refinements. Two displays map left and right hands automatically."
                 ) {
                     Picker("Preferred hand", selection: setting(\.gridHand)) {
                         ForEach(GridNavigation.Hand.allCases, id: \.self) { hand in
@@ -631,7 +638,8 @@ struct SettingsView: View {
 
     private var windowSelectionContent: some View {
         VStack(alignment: .leading, spacing: 22) {
-            SettingsSection("Window list", subtitle: "Show a list of windows on every display with stable app letters.") {
+            SettingsSection("Window list", subtitle: "Show a list of windows on every display with stable app letters.")
+            {
                 SettingsToggleRow("Enable window list", isOn: modeBinding(.windowList))
                 Group {
                     SettingsCardDivider()
@@ -651,7 +659,8 @@ struct SettingsView: View {
                 .opacity(model.config.isModeEnabled(.windowPicker) ? 1 : 0.5)
             }
 
-            SettingsSection("Mission Control picker", subtitle: "Open Mission Control and label every window preview.") {
+            SettingsSection("Mission Control picker", subtitle: "Open Mission Control and label every window preview.")
+            {
                 SettingsToggleRow("Enable Mission Control picker", isOn: modeBinding(.missionControl))
                 Group {
                     SettingsCardDivider()
@@ -1095,7 +1104,8 @@ private struct PinnedAppsSettings: View {
         let sortedPins = model.config.pins.sorted { $0.key < $1.key }
         SettingsSection(
             "Pinned apps",
-            subtitle: "Give an app a fixed letter in the window list and pickers. The window list can also launch pinned apps.",
+            subtitle:
+                "Give an app a fixed letter in the window list and pickers. The window list can also launch pinned apps.",
             footer: model.config.availableWindowPinLetters.isEmpty
                 ? "All letters are in use. Remove a pin to free a letter."
                 : nil
@@ -1106,11 +1116,15 @@ private struct PinnedAppsSettings: View {
                 let name = appName(bundleID)
                 SettingsRow(name) {
                     HStack(spacing: 8) {
-                        Picker("Pinned letter for \(name)", selection: Binding(
-                            get: { letter },
-                            set: { if model.config.setWindowPin($0, for: bundleID) { model.commit() } }
-                        )) {
-                            ForEach((model.config.availableWindowPinLetters + [letter]).sorted(), id: \.self) { choice in
+                        Picker(
+                            "Pinned letter for \(name)",
+                            selection: Binding(
+                                get: { letter },
+                                set: { if model.config.setWindowPin($0, for: bundleID) { model.commit() } }
+                            )
+                        ) {
+                            ForEach((model.config.availableWindowPinLetters + [letter]).sorted(), id: \.self) {
+                                choice in
                                 Text(choice.uppercased()).tag(choice)
                             }
                         }

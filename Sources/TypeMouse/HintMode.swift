@@ -92,8 +92,12 @@ final class HintMode {
             return
         }
         isLoading = false
-        Log.info(String(format: "scan %@: %d targets (%d weak duplicates removed), %d visited, %.0f ms%@", app.localizedName ?? "?",
-                        result.targets.count, result.weakRemoved, result.visited, result.duration * 1000, result.menuOpen ? " (menu)" : ""))
+        Log.info(
+            String(
+                format: "scan %@: %d targets (%d weak duplicates removed), %d visited, %.0f ms%@",
+                app.localizedName ?? "?",
+                result.targets.count, result.weakRemoved, result.visited, result.duration * 1000,
+                result.menuOpen ? " (menu)" : ""))
         targets = result.targets
         guard !targets.isEmpty else {
             overlay.render([], banner: "No clickable elements in \(app.localizedName ?? "this app")")
@@ -102,7 +106,8 @@ final class HintMode {
             }
             return
         }
-        labels = Hints.spread(Hints.generate(count: targets.count, alphabet: config.hintAlphabet), alphabet: config.hintAlphabet)
+        labels = Hints.spread(
+            Hints.generate(count: targets.count, alphabet: config.hintAlphabet), alphabet: config.hintAlphabet)
         overlay.fontSize = CGFloat(config.labelFontSize)
         if phase == .search { enterSearch() } else { render() }
     }
@@ -120,12 +125,17 @@ final class HintMode {
 
     /// Exit when the user switches apps some other way.
     func appDidActivate(_ other: NSRunningApplication) {
-        if isActive, other.processIdentifier != app?.processIdentifier { exit("\(other.localizedName ?? "?") became active") }
+        if isActive, other.processIdentifier != app?.processIdentifier {
+            exit("\(other.localizedName ?? "?") became active")
+        }
     }
 
     func handle(_ key: KeyEvent) {
         guard isActive else { return }
-        if key.special == .escape { exit("escape"); return }
+        if key.special == .escape {
+            exit("escape")
+            return
+        }
         guard !targets.isEmpty else { return }
         interactedWithLabels = true
         switch phase {
@@ -139,7 +149,10 @@ final class HintMode {
     private func handleLabels(_ key: KeyEvent) {
         switch key.special {
         case .backspace:
-            if !typed.isEmpty { typed.removeLast(); render() }
+            if !typed.isEmpty {
+                typed.removeLast()
+                render()
+            }
             return
         case .enter:
             let hits = labels.indices.filter { labels[$0].hasPrefix(typed) }
@@ -160,12 +173,18 @@ final class HintMode {
             return
         default: break
         }
-        if key.char == "/" { enterSearch(); return }
+        if key.char == "/" {
+            enterSearch()
+            return
+        }
         guard key.char.count == 1, config.hintAlphabet.contains(Character(key.char)) else { return }
 
         let next = typed + key.char
         let hits = labels.indices.filter { labels[$0].hasPrefix(next) }
-        guard !hits.isEmpty else { NSSound.beep(); return }
+        guard !hits.isEmpty else {
+            NSSound.beep()
+            return
+        }
         if hits.count == 1, labels[hits[0]] == next {
             fire(hits[0], ClickKind(key), chain: ClickKind.isChain(key) || chainMode)
             return
@@ -205,10 +224,17 @@ final class HintMode {
     private func handleSearch(_ key: KeyEvent) {
         switch key.special {
         case .enter:
-            if matches.indices.contains(highlight) { fire(matches[highlight], ClickKind(key), chain: ClickKind.isChain(key) || chainMode) }
+            if matches.indices.contains(highlight) {
+                fire(matches[highlight], ClickKind(key), chain: ClickKind.isChain(key) || chainMode)
+            }
             return
         case .backspace:
-            if query.isEmpty { phase = .labels; typed = ""; render(); return }
+            if query.isEmpty {
+                phase = .labels
+                typed = ""
+                render()
+                return
+            }
             query.removeLast()
             updateMatches()
             return
@@ -223,8 +249,14 @@ final class HintMode {
             return
         default: break
         }
-        if key.control && key.char == "n" { moveHighlight(1); return }
-        if key.control && key.char == "p" { moveHighlight(-1); return }
+        if key.control && key.char == "n" {
+            moveHighlight(1)
+            return
+        }
+        if key.control && key.char == "p" {
+            moveHighlight(-1)
+            return
+        }
         if key.command || key.control { return }
         guard !key.char.isEmpty || key.special == .space else { return }
         query += key.special == .space ? " " : key.char

@@ -20,7 +20,9 @@ public enum LabelPriority {
 
     /// Roles that are clickable only because something listens for clicks on them.
     /// Vimium C calls these "weak" click types.
-    static let weakRoles: Set<String> = ["AXGroup", "AXImage", "AXStaticText", "AXGenericElement", "AXUnknown", "AXList"]
+    static let weakRoles: Set<String> = [
+        "AXGroup", "AXImage", "AXStaticText", "AXGenericElement", "AXUnknown", "AXList",
+    ]
 
     public struct Candidate {
         public let frame: CGRect
@@ -45,7 +47,10 @@ public enum LabelPriority {
                 let f = items[s].frame.insetBy(dx: -1, dy: -1)
                 if f.contains(weak) { return false }
                 if weak.insetBy(dx: -1, dy: -1).contains(items[s].frame), area > 0,
-                   items[s].frame.width * items[s].frame.height / area >= coverage { return false }
+                    items[s].frame.width * items[s].frame.height / area >= coverage
+                {
+                    return false
+                }
             }
             return true
         }

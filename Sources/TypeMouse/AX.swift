@@ -25,8 +25,11 @@ extension AXUIElement {
     /// Reads several attributes in one IPC round trip. Missing or failed attributes are left out.
     func values(_ attrs: [String]) -> [String: AnyObject] {
         var out: CFArray?
-        guard AXUIElementCopyMultipleAttributeValues(self, attrs as CFArray, AXCopyMultipleAttributeOptions(rawValue: 0), &out) == .success,
-              let arr = out as? [AnyObject] else { return [:] }
+        guard
+            AXUIElementCopyMultipleAttributeValues(
+                self, attrs as CFArray, AXCopyMultipleAttributeOptions(rawValue: 0), &out) == .success,
+            let arr = out as? [AnyObject]
+        else { return [:] }
         var dict: [String: AnyObject] = [:]
         for (i, v) in arr.enumerated() where i < attrs.count {
             if v is NSNull { continue }
@@ -87,11 +90,13 @@ private func _AXUIElementGetWindow(_ element: AXUIElement, _ id: UnsafeMutablePo
 enum AX {
     static func frame(position: AnyObject?, size: AnyObject?) -> CGRect? {
         guard let position, let size,
-              CFGetTypeID(position) == AXValueGetTypeID(), CFGetTypeID(size) == AXValueGetTypeID() else { return nil }
+            CFGetTypeID(position) == AXValueGetTypeID(), CFGetTypeID(size) == AXValueGetTypeID()
+        else { return nil }
         var p = CGPoint.zero
         var s = CGSize.zero
         guard AXValueGetValue(position as! AXValue, .cgPoint, &p),
-              AXValueGetValue(size as! AXValue, .cgSize, &s) else { return nil }
+            AXValueGetValue(size as! AXValue, .cgSize, &s)
+        else { return nil }
         return CGRect(origin: p, size: s)
     }
 

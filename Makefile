@@ -1,4 +1,4 @@
-.PHONY: build test app cert icon run restart dump windows clean
+.PHONY: build test lint format app cert icon run restart dump windows clean
 
 # Use full Xcode when installed (unit tests need XCTest). Otherwise use the Command Line Tools.
 ifneq ($(wildcard /Applications/Xcode.app),)
@@ -12,6 +12,12 @@ build:
 
 test:
 	swift test
+
+lint:
+	swift format lint --strict --configuration .swift-format -r Sources Tests
+
+format:
+	swift format format -i --configuration .swift-format -r Sources Tests
 
 cert:
 	scripts/make-cert.sh

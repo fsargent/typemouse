@@ -77,8 +77,10 @@ final class ElementProvider {
     private var prioritize = true
     private var scanInParallel = true
 
-    func collect(app: NSRunningApplication, config: Config, desktop: CGRect? = nil,
-                 browserFallback: ((Result) -> Void)? = nil) -> Result {
+    func collect(
+        app: NSRunningApplication, config: Config, desktop: CGRect? = nil,
+        browserFallback: ((Result) -> Void)? = nil
+    ) -> Result {
         let start = Date()
         let desktop = desktop ?? AX.desktopBounds()
         prioritize = config.prioritizeLabels
@@ -107,8 +109,10 @@ final class ElementProvider {
         }
         result.duration = Date().timeIntervalSince(start)
         let status = lastWebCount == 0 ? "page tree unavailable" : "page tree ready"
-        Log.info(String(format: "%@ in %@: %d page targets after %.0f ms", status, app.localizedName ?? "?",
-                        lastWebCount, result.duration * 1000))
+        Log.info(
+            String(
+                format: "%@ in %@: %d page targets after %.0f ms", status, app.localizedName ?? "?",
+                lastWebCount, result.duration * 1000))
         return result
     }
 
@@ -128,7 +132,8 @@ final class ElementProvider {
         var roots: [(AXUIElement, CGRect)] = []
         var menuBarItems: [AXUIElement] = []
         if let win = appEl.element(kAXFocusedWindowAttribute) ?? appEl.element(kAXMainWindowAttribute),
-           let wf = win.frame {
+            let wf = win.frame
+        {
             roots.append((win, wf.intersection(desktop)))
         }
         if let bar = appEl.element(kAXMenuBarAttribute) {
@@ -158,7 +163,9 @@ final class ElementProvider {
 
     private static func fallbackText(_ t: Target) -> String {
         guard t.text.isEmpty else { return t.text }
-        let v = t.element.values([kAXValueAttribute, kAXPlaceholderValueAttribute, kAXHelpAttribute, kAXChildrenAttribute])
+        let v = t.element.values([
+            kAXValueAttribute, kAXPlaceholderValueAttribute, kAXHelpAttribute, kAXChildrenAttribute,
+        ])
         var text = ""
         if let s = v[kAXValueAttribute] as? String, s.count < 200 { text = s }
         if text.isEmpty, let s = v[kAXPlaceholderValueAttribute] as? String { text = s }
@@ -166,7 +173,8 @@ final class ElementProvider {
         if text.isEmpty, let kids = v[kAXChildrenAttribute] as? [AXUIElement] {
             text = kids.prefix(5).compactMap { k -> String? in
                 let kv = k.values([kAXValueAttribute, kAXTitleAttribute, kAXDescriptionAttribute])
-                return (kv[kAXValueAttribute] as? String) ?? (kv[kAXTitleAttribute] as? String) ?? (kv[kAXDescriptionAttribute] as? String)
+                return (kv[kAXValueAttribute] as? String) ?? (kv[kAXTitleAttribute] as? String)
+                    ?? (kv[kAXDescriptionAttribute] as? String)
             }.joined(separator: " ")
         }
         return text
@@ -215,7 +223,9 @@ final class ElementProvider {
         }
         // Fan out near the root, where subtrees are big. Deeper down, threads cost more than they save.
         if depth < 6 && children.count > 1 {
-            parallel(children) { self.visit($0, clip: childClip, depth: depth + 1, inWeb: inWeb || role == "AXWebArea") }
+            parallel(children) {
+                self.visit($0, clip: childClip, depth: depth + 1, inWeb: inWeb || role == "AXWebArea")
+            }
         } else {
             for c in children { visit(c, clip: childClip, depth: depth + 1, inWeb: inWeb || role == "AXWebArea") }
         }
@@ -224,20 +234,23 @@ final class ElementProvider {
     /// Groups whose frame can be smaller than their visible children (for example, zero-size wrappers).
     static let passThroughRoles: Set<String> = ["AXGroup", "AXMenuBarItem", "AXMenuItem"]
 
-    private func consider(_ el: AXUIElement, role: String, values v: [String: AnyObject], visible: CGRect, depth: Int, inWeb: Bool) {
+    private func consider(
+        _ el: AXUIElement, role: String, values v: [String: AnyObject], visible: CGRect, depth: Int, inWeb: Bool
+    ) {
         guard visible.width >= 3, visible.height >= 3 else { return }
         if (v[kAXEnabledAttribute] as? NSNumber)?.boolValue == false { return }
         if Self.structuralRoles.contains(role) { return }
 
         var clickable = Self.clickableRoles.contains(role)
-        if !clickable && role == "AXRow" { clickable = true } // table and outline rows select on click
+        if !clickable && role == "AXRow" { clickable = true }  // table and outline rows select on click
         if !clickable {
             let actions = el.actionNames()
             clickable = actions.contains(kAXPressAction) || actions.contains("AXOpen")
         }
         guard clickable else { return }
 
-        let text = (v[kAXTitleAttribute] as? String).flatMap { $0.isEmpty ? nil : $0 }
+        let text =
+            (v[kAXTitleAttribute] as? String).flatMap { $0.isEmpty ? nil : $0 }
             ?? (v[kAXDescriptionAttribute] as? String) ?? ""
         add(Target(element: el, frame: visible, role: role, text: text, inWebArea: inWeb, depth: depth))
     }
@@ -254,7 +267,9 @@ final class ElementProvider {
         ]
         var multi = base
         multi["AXSearchKey"] = Self.webSearchKeys
-        if let all = webArea.parameterized("AXUIElementsForSearchPredicate", multi as CFDictionary) as? [AXUIElement], !all.isEmpty {
+        if let all = webArea.parameterized("AXUIElementsForSearchPredicate", multi as CFDictionary) as? [AXUIElement],
+            !all.isEmpty
+        {
             return all
         }
         var seen = Set<AXUIElement>()
@@ -262,7 +277,8 @@ final class ElementProvider {
         for key in Self.webSearchKeys {
             var q = base
             q["AXSearchKey"] = key
-            let hits = (webArea.parameterized("AXUIElementsForSearchPredicate", q as CFDictionary) as? [AXUIElement]) ?? []
+            let hits =
+                (webArea.parameterized("AXUIElementsForSearchPredicate", q as CFDictionary) as? [AXUIElement]) ?? []
             for h in hits where seen.insert(h).inserted { out.append(h) }
         }
         return out
@@ -272,13 +288,15 @@ final class ElementProvider {
         let v = el.values(Self.baseAttributes)
         bump()
         guard let role = v[kAXRoleAttribute] as? String,
-              let frame = AX.frame(position: v[kAXPositionAttribute], size: v[kAXSizeAttribute]) else { return }
+            let frame = AX.frame(position: v[kAXPositionAttribute], size: v[kAXSizeAttribute])
+        else { return }
         let visible = frame.intersection(clip)
         guard !visible.isNull, visible.width >= 3, visible.height >= 3 else { return }
         if (v[kAXEnabledAttribute] as? NSNumber)?.boolValue == false { return }
         // Search keys already selected controls, so no action check here.
         if role == "AXWebArea" || role == "AXStaticText" { return }
-        let text = (v[kAXTitleAttribute] as? String).flatMap { $0.isEmpty ? nil : $0 }
+        let text =
+            (v[kAXTitleAttribute] as? String).flatMap { $0.isEmpty ? nil : $0 }
             ?? (v[kAXDescriptionAttribute] as? String) ?? ""
         add(Target(element: el, frame: visible, role: role, text: text, inWebArea: true, depth: depth))
     }
@@ -297,14 +315,17 @@ final class ElementProvider {
         let prioritize = self.prioritize
         func tier(_ t: Target) -> LabelPriority.Tier {
             if !prioritize { return t.inMenuBar ? .menuBar : .other }
-            return LabelPriority.tier(role: t.role, inWebArea: t.inWebArea, appHasWebContent: hasWeb, inMenuBar: t.inMenuBar)
+            return LabelPriority.tier(
+                role: t.role, inWebArea: t.inWebArea, appHasWebContent: hasWeb, inMenuBar: t.inMenuBar)
         }
         let targets = kept.sorted {
-            let a = tier($0), b = tier($1)
+            let a = tier($0)
+            let b = tier($1)
             return a != b ? a < b : Geometry.readingOrder($0.frame, $1.frame)
         }
-        return Result(targets: targets, visited: visited, duration: Date().timeIntervalSince(start), menuOpen: menuOpen,
-                      weakRemoved: weakRemoved, removed: removedTargets)
+        return Result(
+            targets: targets, visited: visited, duration: Date().timeIntervalSince(start), menuOpen: menuOpen,
+            weakRemoved: weakRemoved, removed: removedTargets)
     }
 
     /// A group and the button inside it often share a frame. Keep the deepest one.

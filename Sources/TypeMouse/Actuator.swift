@@ -8,12 +8,19 @@ enum ClickKind {
     /// Modifiers on the final key choose the kind of click. Shift does not change the kind:
     /// it chains (see `isChain`), so Shift+⌘ chains ⌘-clicks.
     init(_ key: KeyEvent) {
-        if key.hyperHeld { self = .left }
-        else if key.control && key.option { self = .hover }
-        else if key.command { self = .command }
-        else if key.control { self = .right }
-        else if key.option { self = .double }
-        else { self = .left }
+        if key.hyperHeld {
+            self = .left
+        } else if key.control && key.option {
+            self = .hover
+        } else if key.command {
+            self = .command
+        } else if key.control {
+            self = .right
+        } else if key.option {
+            self = .double
+        } else {
+            self = .left
+        }
     }
 
     /// Shift on the final key: click, then show new labels and stay in click mode.
@@ -24,7 +31,8 @@ enum ClickKind {
 enum Actuator {
     static func perform(_ kind: ClickKind, on t: Target, strategy: Config.ClickStrategy, restoreMouse: Bool) {
         let point = CGPoint(x: t.frame.midX, y: t.frame.midY)
-        Log.info("click \(kind) \(t.role) \"\(t.text.prefix(40))\" at \(Int(point.x)),\(Int(point.y)) strategy=\(strategy)")
+        Log.info(
+            "click \(kind) \(t.role) \"\(t.text.prefix(40))\" at \(Int(point.x)),\(Int(point.y)) strategy=\(strategy)")
 
         switch kind {
         case .hover:
@@ -46,7 +54,9 @@ enum Actuator {
 
         if t.isTextInput {
             // Web text fields focus more reliably with a real click.
-            if !t.inWebArea && strategy != .mouse && t.element.set(kAXFocusedAttribute, kCFBooleanTrue) == .success { return }
+            if !t.inWebArea && strategy != .mouse && t.element.set(kAXFocusedAttribute, kCFBooleanTrue) == .success {
+                return
+            }
             mouseClick(at: point, restore: false)
             return
         }
@@ -75,16 +85,21 @@ enum Actuator {
             .post(tap: .cghidEventTap)
     }
 
-    static func mouseClick(at p: CGPoint, button: CGMouseButton = .left, flags: CGEventFlags = [], count: Int = 1, restore: Bool) {
+    static func mouseClick(
+        at p: CGPoint, button: CGMouseButton = .left, flags: CGEventFlags = [], count: Int = 1, restore: Bool
+    ) {
         let original = CGEvent(source: nil)?.location
         let src = CGEventSource(stateID: .hidSystemState)
-        let (downType, upType): (CGEventType, CGEventType) = button == .right
+        let (downType, upType): (CGEventType, CGEventType) =
+            button == .right
             ? (.rightMouseDown, .rightMouseUp) : (.leftMouseDown, .leftMouseUp)
 
         moveMouse(to: p)
         for n in 1...max(1, count) {
             for type in [downType, upType] {
-                guard let e = CGEvent(mouseEventSource: src, mouseType: type, mouseCursorPosition: p, mouseButton: button) else { continue }
+                guard
+                    let e = CGEvent(mouseEventSource: src, mouseType: type, mouseCursorPosition: p, mouseButton: button)
+                else { continue }
                 e.flags = flags
                 e.setIntegerValueField(.mouseEventClickState, value: Int64(n))
                 e.post(tap: .cghidEventTap)

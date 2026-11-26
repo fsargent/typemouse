@@ -1,6 +1,6 @@
 import AppKit
-import TypeMouseCore
 import ServiceManagement
+import TypeMouseCore
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let capture = KeyCapture()
@@ -66,15 +66,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // has rebuilt its page tree before the next hotkey press.
         flagTimer = Timer.scheduledTimer(withTimeInterval: 3, repeats: true) { [weak self] _ in
             guard let self, !self.hints.isActive, let front = NSWorkspace.shared.frontmostApplication,
-                  self.config.enhancedUserInterfaceApps.contains(front.bundleIdentifier ?? "") else { return }
+                self.config.enhancedUserInterfaceApps.contains(front.bundleIdentifier ?? "")
+            else { return }
             AccessibilityActivator.activate(front, enhanced: true)
         }
-        NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didActivateApplicationNotification,
-                                                          object: nil, queue: .main) { [weak self] n in
+        NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didActivateApplicationNotification,
+            object: nil, queue: .main
+        ) { [weak self] n in
             guard let app = n.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication else { return }
             self?.hints.appDidActivate(app)
             // Wake Chromium/Electron trees early, so the first scan is not empty.
-            AccessibilityActivator.activate(app, enhanced: self?.config.enhancedUserInterfaceApps.contains(app.bundleIdentifier ?? "") ?? false)
+            AccessibilityActivator.activate(
+                app, enhanced: self?.config.enhancedUserInterfaceApps.contains(app.bundleIdentifier ?? "") ?? false)
         }
         watchConfig()
         installSignalHandlers()
@@ -111,16 +115,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             (.search, "search", config.hotkeys.search, { [weak self] in self?.toggleHints(search: true) }),
             (.windowList, "window", config.hotkeys.window, { [weak self] in self?.toggleWindows() }),
             (.windowPicker, "picker", config.hotkeys.picker, { [weak self] in self?.togglePicker() }),
-            (.missionControl, "mission control picker", config.hotkeys.missionControl, { [weak self] in self?.togglePicker(missionControl: true) }),
+            (
+                .missionControl, "mission control picker", config.hotkeys.missionControl,
+                { [weak self] in self?.togglePicker(missionControl: true) }
+            ),
             (.grid, "grid", config.hotkeys.grid, { [weak self] in self?.toggleGrid() }),
             (.scroll, "scroll", config.hotkeys.scroll, { [weak self] in self?.toggleGrid(pickScrollArea: true) }),
         ]
         for (mode, name, strings, action) in pairs where config.isModeEnabled(mode) {
             for string in strings {
-                guard let spec = HotkeySpec(string) else { Log.info("bad hotkey \"\(string)\""); continue }
+                guard let spec = HotkeySpec(string) else {
+                    Log.info("bad hotkey \"\(string)\"")
+                    continue
+                }
                 let registered = hotkeys.register(spec) { [weak self] in
                     // Logged, so a press that never arrives is visible: it leaves no line.
-                    Log.info("hotkey \(name) (\(string)) in \(NSWorkspace.shared.frontmostApplication?.localizedName ?? "?")")
+                    Log.info(
+                        "hotkey \(name) (\(string)) in \(NSWorkspace.shared.frontmostApplication?.localizedName ?? "?")"
+                    )
                     action()
                     if self?.capture.active == true { self?.capture.passNextKeyUp(Int64(spec.keyCode)) }
                 }
@@ -130,7 +142,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard config.isModeEnabled(.windowManagement) else { return }
         windowShortcuts = WindowCommand.allCases.compactMap { command in
             guard let spec = HotkeySpec(config.hotkeys.shortcut(for: command)),
-                  hotkeys.register(spec, { [weak self] in self?.arrangeWindow(command) }) else { return nil }
+                hotkeys.register(spec, { [weak self] in self?.arrangeWindow(command) })
+            else { return nil }
             return (spec, command)
         }
     }
@@ -146,7 +159,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func toggleHints(search: Bool) {
         guard config.isModeEnabled(search ? .search : .click),
-              !hints.isLoading, capture.active || startCapture(prompt: true) else { return }
+            !hints.isLoading, capture.active || startCapture(prompt: true)
+        else { return }
         grid.exit()
         windows.exit()
         picker.exit()
@@ -155,7 +169,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func toggleWindows() {
         guard config.isModeEnabled(.windowList),
-              capture.active || startCapture(prompt: true) else { return }
+            capture.active || startCapture(prompt: true)
+        else { return }
         grid.exit()
         hints.exit()
         picker.exit()
@@ -168,7 +183,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard config.isModeEnabled(.click) else { return }
         let pid = info.app.processIdentifier
         let front = NSWorkspace.shared.frontmostApplication?.processIdentifier == pid
-        let focused = info.id == nil
+        let focused =
+            info.id == nil
             || AXUIElementCreateApplication(pid).element(kAXFocusedWindowAttribute)?.windowID == info.id
         if (front && focused) || Date() >= deadline {
             guard !hints.isActive, !windows.isActive, !picker.isActive, !grid.isActive else { return }
@@ -182,7 +198,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func togglePicker(missionControl: Bool = false) {
         guard config.isModeEnabled(missionControl ? .missionControl : .windowPicker),
-              capture.active || startCapture(prompt: true) else { return }
+            capture.active || startCapture(prompt: true)
+        else { return }
         grid.exit()
         hints.exit()
         windows.exit()
@@ -198,7 +215,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func toggleGrid(pickScrollArea: Bool = false) {
         guard config.isModeEnabled(pickScrollArea ? .scroll : .grid),
-              capture.active || startCapture(prompt: true) else { return }
+            capture.active || startCapture(prompt: true)
+        else { return }
         hints.exit()
         windows.exit()
         picker.exit()
@@ -222,11 +240,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 return
             }
         }
-        if hints.isActive { hints.handle(key) }
-        else if windows.isActive { windows.handle(key) }
-        else if picker.isActive { picker.handle(key) }
-        else if grid.isActive { grid.handle(key) }
-        else { capture.setActive(false) }
+        if hints.isActive {
+            hints.handle(key)
+        } else if windows.isActive {
+            windows.handle(key)
+        } else if picker.isActive {
+            picker.handle(key)
+        } else if grid.isActive {
+            grid.handle(key)
+        } else {
+            capture.setActive(false)
+        }
     }
 
     private func matches(_ key: KeyEvent, _ spec: HotkeySpec) -> Bool {
@@ -262,8 +286,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(withTitle: "Settings…", action: #selector(openSettings), keyEquivalent: ",").target = self
         menu.addItem(withTitle: "Open config", action: #selector(openConfig), keyEquivalent: "").target = self
         menu.addItem(withTitle: "Open log", action: #selector(openLog), keyEquivalent: "").target = self
-        menu.addItem(withTitle: "Accessibility settings…", action: #selector(openAXSettings), keyEquivalent: "").target = self
-        let login = menu.addItem(withTitle: "Launch at login", action: #selector(toggleLoginItem(_:)), keyEquivalent: "")
+        menu.addItem(withTitle: "Accessibility settings…", action: #selector(openAXSettings), keyEquivalent: "")
+            .target = self
+        let login = menu.addItem(
+            withTitle: "Launch at login", action: #selector(toggleLoginItem(_:)), keyEquivalent: "")
         login.target = self
         menu.delegate = self
         loginMenuItem = login
@@ -305,7 +331,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func openConfig() { NSWorkspace.shared.open(ConfigStore.url) }
     @objc private func openLog() { NSWorkspace.shared.open(Log.url) }
     @objc private func openAXSettings() {
-        NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
+        NSWorkspace.shared.open(
+            URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
     }
 
     // MARK: - Config hot reload
@@ -328,7 +355,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func watchConfig() {
         let dirFD = open(ConfigStore.url.deletingLastPathComponent().path, O_EVTONLY)
         if dirFD >= 0 {
-            let src = DispatchSource.makeFileSystemObjectSource(fileDescriptor: dirFD, eventMask: [.write, .rename], queue: .main)
+            let src = DispatchSource.makeFileSystemObjectSource(
+                fileDescriptor: dirFD, eventMask: [.write, .rename], queue: .main)
             src.setEventHandler { [weak self] in
                 self?.watchConfigFile()
                 self?.applyConfig(ConfigStore.load())
@@ -432,7 +460,8 @@ enum Log {
                 try? fm.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
                 fm.createFile(atPath: url.path, contents: nil)
             } else if let attrs = try? fm.attributesOfItem(atPath: url.path),
-                      let size = attrs[.size] as? UInt64, size >= maxBytes {
+                let size = attrs[.size] as? UInt64, size >= maxBytes
+            {
                 let backup = url.appendingPathExtension("1")
                 try? fm.removeItem(at: backup)
                 try? fm.moveItem(at: url, to: backup)

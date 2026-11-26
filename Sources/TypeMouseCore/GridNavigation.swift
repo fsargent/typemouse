@@ -52,7 +52,8 @@ public struct GridNavigation {
     public mutating func select(_ key: Character) -> Bool {
         for region in regions {
             // After choosing a display, either hand can refine the target.
-            let index = region.keys.firstIndex(of: key)
+            let index =
+                region.keys.firstIndex(of: key)
                 ?? (history.isEmpty ? nil : preferredHand.other.keys.firstIndex(of: key))
             guard let index, min(region.frame.width, region.frame.height) > 1 else { continue }
             history.append(Self.cell(index, in: region.frame))
@@ -72,8 +73,9 @@ public struct GridNavigation {
 
     public static func cell(_ index: Int, in frame: CGRect) -> CGRect {
         let size = CGSize(width: frame.width / 3, height: frame.height / 3)
-        return CGRect(x: frame.minX + CGFloat(index % 3) * size.width,
-                      y: frame.minY + CGFloat(index / 3) * size.height,
-                      width: size.width, height: size.height)
+        return CGRect(
+            x: frame.minX + CGFloat(index % 3) * size.width,
+            y: frame.minY + CGFloat(index / 3) * size.height,
+            width: size.width, height: size.height)
     }
 }

@@ -50,15 +50,17 @@ struct KeyEvent {
 enum KeyTranslator {
     static func unmodifiedCharacter(_ keyCode: UInt16) -> String {
         guard let source = TISCopyCurrentKeyboardLayoutInputSource()?.takeRetainedValue(),
-              let raw = TISGetInputSourceProperty(source, kTISPropertyUnicodeKeyLayoutData) else { return "" }
+            let raw = TISGetInputSourceProperty(source, kTISPropertyUnicodeKeyLayoutData)
+        else { return "" }
         let data = Unmanaged<CFData>.fromOpaque(raw).takeUnretainedValue()
         guard let bytes = CFDataGetBytePtr(data) else { return "" }
         let layout = UnsafeRawPointer(bytes).assumingMemoryBound(to: UCKeyboardLayout.self)
         var deadKeys: UInt32 = 0
         var length = 0
         var chars = [UniChar](repeating: 0, count: 4)
-        let status = UCKeyTranslate(layout, keyCode, UInt16(kUCKeyActionDown), 0, UInt32(LMGetKbdType()),
-                                    OptionBits(kUCKeyTranslateNoDeadKeysBit), &deadKeys, chars.count, &length, &chars)
+        let status = UCKeyTranslate(
+            layout, keyCode, UInt16(kUCKeyActionDown), 0, UInt32(LMGetKbdType()),
+            OptionBits(kUCKeyTranslateNoDeadKeysBit), &deadKeys, chars.count, &length, &chars)
         return status == noErr ? String(utf16CodeUnits: chars, count: length) : ""
     }
 }
@@ -80,7 +82,7 @@ final class HotkeyManager {
         let id = nextID
         nextID += 1
         var ref: EventHotKeyRef?
-        let hkID = EventHotKeyID(signature: OSType(0x544D_5345), id: id) // "TMSE"
+        let hkID = EventHotKeyID(signature: OSType(0x544D_5345), id: id)  // "TMSE"
         let status = RegisterEventHotKey(spec.keyCode, mods, hkID, GetApplicationEventTarget(), 0, &ref)
         guard status == noErr, let ref else {
             Log.info("hotkey \(spec) failed to register: \(status)")
@@ -92,7 +94,7 @@ final class HotkeyManager {
     }
 
     func unregisterAll() {
-        refs.forEach { UnregisterEventHotKey($0) }
+        for ref in refs { UnregisterEventHotKey(ref) }
         refs = []
         handlers = [:]
     }
@@ -103,15 +105,18 @@ final class HotkeyManager {
         guard !installed else { return }
         installed = true
         var spec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
-        InstallEventHandler(GetApplicationEventTarget(), { _, event, userData in
-            guard let userData else { return noErr }
-            var hkID = EventHotKeyID()
-            GetEventParameter(event, EventParamName(kEventParamDirectObject), EventParamType(typeEventHotKeyID),
-                              nil, MemoryLayout<EventHotKeyID>.size, nil, &hkID)
-            let me = Unmanaged<HotkeyManager>.fromOpaque(userData).takeUnretainedValue()
-            me.fire(hkID.id)
-            return noErr
-        }, 1, &spec, Unmanaged.passUnretained(self).toOpaque(), nil)
+        InstallEventHandler(
+            GetApplicationEventTarget(),
+            { _, event, userData in
+                guard let userData else { return noErr }
+                var hkID = EventHotKeyID()
+                GetEventParameter(
+                    event, EventParamName(kEventParamDirectObject), EventParamType(typeEventHotKeyID),
+                    nil, MemoryLayout<EventHotKeyID>.size, nil, &hkID)
+                let me = Unmanaged<HotkeyManager>.fromOpaque(userData).takeUnretainedValue()
+                me.fire(hkID.id)
+                return noErr
+            }, 1, &spec, Unmanaged.passUnretained(self).toOpaque(), nil)
     }
 }
 
@@ -139,11 +144,15 @@ final class KeyCapture {
     /// Fails until the app has Accessibility permission.
     func start() -> Bool {
         if tap != nil { return true }
-        let mask = (1 << CGEventType.keyDown.rawValue) | (1 << CGEventType.keyUp.rawValue)
+        let mask =
+            (1 << CGEventType.keyDown.rawValue) | (1 << CGEventType.keyUp.rawValue)
             | (1 << CGEventType.flagsChanged.rawValue)
-        guard let tap = CGEvent.tapCreate(tap: .cgSessionEventTap, place: .headInsertEventTap, options: .defaultTap,
-                                          eventsOfInterest: CGEventMask(mask), callback: keyTapCallback,
-                                          userInfo: Unmanaged.passUnretained(self).toOpaque()) else { return false }
+        guard
+            let tap = CGEvent.tapCreate(
+                tap: .cgSessionEventTap, place: .headInsertEventTap, options: .defaultTap,
+                eventsOfInterest: CGEventMask(mask), callback: keyTapCallback,
+                userInfo: Unmanaged.passUnretained(self).toOpaque())
+        else { return false }
         CGEvent.tapEnable(tap: tap, enable: false)
         self.tap = tap
         let source = CFMachPortCreateRunLoopSource(nil, tap, 0)
@@ -200,7 +209,9 @@ final class KeyCapture {
     }
 }
 
-private func keyTapCallback(proxy: CGEventTapProxy, type: CGEventType, event: CGEvent, refcon: UnsafeMutableRawPointer?) -> Unmanaged<CGEvent>? {
+private func keyTapCallback(proxy: CGEventTapProxy, type: CGEventType, event: CGEvent, refcon: UnsafeMutableRawPointer?)
+    -> Unmanaged<CGEvent>?
+{
     guard let refcon else { return Unmanaged.passUnretained(event) }
     return Unmanaged<KeyCapture>.fromOpaque(refcon).takeUnretainedValue().handle(type: type, event: event)
 }

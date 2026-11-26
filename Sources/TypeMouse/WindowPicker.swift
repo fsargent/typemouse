@@ -6,8 +6,8 @@ import TypeMouseCore
 final class WindowPicker {
     struct Entry {
         let info: WindowInfo
-        let point: CGPoint // AX coordinates
-        let area: CGRect   // the window's largest visible rectangle, AX coordinates
+        let point: CGPoint  // AX coordinates
+        let area: CGRect  // the window's largest visible rectangle, AX coordinates
     }
 
     private var desktopActive = false
@@ -36,7 +36,10 @@ final class WindowPicker {
         self.config = config
         overview.update(config: config)
         if (usesPickerShortcut && !config.isModeEnabled(.windowPicker))
-            || (overview.isActive && !config.isModeEnabled(.missionControl)) { exit() }
+            || (overview.isActive && !config.isModeEnabled(.missionControl))
+        {
+            exit()
+        }
     }
 
     func clearDismissedOverview() { overview.clearIfDismissed() }
@@ -55,14 +58,22 @@ final class WindowPicker {
         typed = ""
         let start = Date()
         entries = Self.visibleWindows()
-        Log.info(String(format: "picker: %d visible windows in %.0f ms", entries.count, Date().timeIntervalSince(start) * 1000))
-        guard !entries.isEmpty else { exit(); return }
+        Log.info(
+            String(
+                format: "picker: %d visible windows in %.0f ms", entries.count, Date().timeIntervalSince(start) * 1000))
+        guard !entries.isEmpty else {
+            exit()
+            return
+        }
         labels = Self.labels(for: entries, config: config)
         render()
     }
 
     func exit() {
-        if overview.isActive { overview.exit(); return }
+        if overview.isActive {
+            overview.exit()
+            return
+        }
         guard desktopActive else { return }
         desktopActive = false
         capture.setActive(false)
@@ -71,19 +82,30 @@ final class WindowPicker {
     }
 
     func handle(_ key: KeyEvent) {
-        if overview.isActive { overview.handle(key); return }
+        if overview.isActive {
+            overview.handle(key)
+            return
+        }
         guard desktopActive else { return }
         switch key.special {
-        case .escape: exit(); return
+        case .escape:
+            exit()
+            return
         case .backspace:
-            if !typed.isEmpty { typed.removeLast(); render() }
+            if !typed.isEmpty {
+                typed.removeLast()
+                render()
+            }
             return
         default: break
         }
         guard key.char.count == 1 else { return }
         let next = typed + key.char
         let hits = labels.indices.filter { labels[$0].hasPrefix(next) }
-        guard !hits.isEmpty else { NSSound.beep(); return }
+        guard !hits.isEmpty else {
+            NSSound.beep()
+            return
+        }
         if hits.count == 1, labels[hits[0]] == next {
             let info = entries[hits[0]].info
             exit()
@@ -99,9 +121,10 @@ final class WindowPicker {
         let specs = labels.indices.compactMap { i -> LabelSpec? in
             guard labels[i].hasPrefix(typed) else { return nil }
             let p = entries[i].point
-            return LabelSpec(text: labels[i], typedCount: typed.count,
-                             rect: CGRect(x: p.x - 1, y: p.y - 1, width: 2, height: 2), style: .normal,
-                             fontSize: Self.fontSize(for: labels[i], in: entries[i].area))
+            return LabelSpec(
+                text: labels[i], typedCount: typed.count,
+                rect: CGRect(x: p.x - 1, y: p.y - 1, width: 2, height: 2), style: .normal,
+                fontSize: Self.fontSize(for: labels[i], in: entries[i].area))
         }
         overlay.render(specs)
     }
@@ -126,24 +149,29 @@ final class WindowPicker {
     /// On-screen windows of the current Space, front to back, with the part that shows.
     static func visibleWindows() -> [Entry] {
         let ownPID = ProcessInfo.processInfo.processIdentifier
-        guard let info = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else { return [] }
+        guard
+            let info = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID)
+                as? [[String: Any]]
+        else { return [] }
 
         var windows: [(id: CGWindowID, pid: pid_t, frame: CGRect)] = []
         for d in info {
             guard (d[kCGWindowLayer as String] as? Int) == 0,
-                  let id = d[kCGWindowNumber as String] as? CGWindowID,
-                  let pid = d[kCGWindowOwnerPID as String] as? pid_t, pid != ownPID,
-                  (d[kCGWindowAlpha as String] as? Double ?? 1) > 0,
-                  let boundsDict = d[kCGWindowBounds as String] as? NSDictionary,
-                  let frame = CGRect(dictionaryRepresentation: boundsDict),
-                  frame.width >= 80, frame.height >= 60 else { continue }
-            windows.append((id, pid, frame)) // CG window bounds use the same top-left origin as AX
+                let id = d[kCGWindowNumber as String] as? CGWindowID,
+                let pid = d[kCGWindowOwnerPID as String] as? pid_t, pid != ownPID,
+                (d[kCGWindowAlpha as String] as? Double ?? 1) > 0,
+                let boundsDict = d[kCGWindowBounds as String] as? NSDictionary,
+                let frame = CGRect(dictionaryRepresentation: boundsDict),
+                frame.width >= 80, frame.height >= 60
+            else { continue }
+            windows.append((id, pid, frame))  // CG window bounds use the same top-left origin as AX
         }
 
         let placements = Visibility.placements(windows.map { .init(id: $0.id, frame: $0.frame) })
         // Focusing needs the AX window, so match by window ID.
-        let axWindows = Dictionary(WindowProvider.shared.list(only: Set(windows.map(\.pid))).compactMap { w in w.id.map { ($0, w) } },
-                                   uniquingKeysWith: { a, _ in a })
+        let axWindows = Dictionary(
+            WindowProvider.shared.list(only: Set(windows.map(\.pid))).compactMap { w in w.id.map { ($0, w) } },
+            uniquingKeysWith: { a, _ in a })
 
         var entries: [Entry] = []
         for w in windows {
@@ -152,13 +180,16 @@ final class WindowPicker {
                 entries.append(Entry(info: info, point: placement.point, area: placement.area))
             } else if let app = NSRunningApplication(processIdentifier: w.pid), app.activationPolicy == .regular {
                 // No AX match (some apps hide windows from AX). Activating the app is the best we can do.
-                entries.append(Entry(info: WindowInfo(app: app, window: nil, id: w.id, title: "", minimized: false),
-                                     point: placement.point, area: placement.area))
+                entries.append(
+                    Entry(
+                        info: WindowInfo(app: app, window: nil, id: w.id, title: "", minimized: false),
+                        point: placement.point, area: placement.area))
             }
         }
         // Top to bottom, then left to right, so labels read in screen order.
         return entries.sorted {
-            Geometry.readingOrder(CGRect(origin: $0.point, size: .zero), CGRect(origin: $1.point, size: .zero), rowHeight: 200)
+            Geometry.readingOrder(
+                CGRect(origin: $0.point, size: .zero), CGRect(origin: $1.point, size: .zero), rowHeight: 200)
         }
     }
 }

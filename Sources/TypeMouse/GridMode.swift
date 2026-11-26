@@ -74,9 +74,10 @@ final class GridMode {
         phase = .choosingScrollArea
         overlay.fontSize = CGFloat(config.labelFontSize)
         capture.setActive(true)
-        let targets = NSWorkspace.shared.frontmostApplication.map {
-            ScrollAreas.collect(app: $0, config: config, displays: quartzScreens)
-        } ?? []
+        let targets =
+            NSWorkspace.shared.frontmostApplication.map {
+                ScrollAreas.collect(app: $0, config: config, displays: quartzScreens)
+            } ?? []
         let labels = Hints.generate(count: targets.count, alphabet: config.hintAlphabet)
         scrollAreas = Array(zip(labels, targets))
         Log.info("scroll area picker found \(targets.count) targets")
@@ -104,10 +105,14 @@ final class GridMode {
 
     func handle(_ key: KeyEvent) {
         guard isActive else { return }
-        if key.special == .escape { exit(); return }
+        if key.special == .escape {
+            exit()
+            return
+        }
         if phase == .scroll {
             guard !key.isRepeat,
-                  let direction = config.scrollKeys.direction(character: key.char, keyCode: key.keyCode) else { return }
+                let direction = config.scrollKeys.direction(character: key.char, keyCode: key.keyCode)
+            else { return }
             updateScrollSpeed(shift: key.shift, command: key.command, hyperHeld: key.hyperHeld)
             heldDirections[key.keyCode] = direction
             if timer == nil {
@@ -187,8 +192,9 @@ final class GridMode {
     private var pointerLocation: CGPoint? { CGEvent(source: nil)?.location }
 
     func flagsChanged(_ flags: CGEventFlags) {
-        updateScrollSpeed(shift: flags.contains(.maskShift), command: flags.contains(.maskCommand),
-                          hyperHeld: flags.contains(HyperKey.hyperFlags))
+        updateScrollSpeed(
+            shift: flags.contains(.maskShift), command: flags.contains(.maskCommand),
+            hyperHeld: flags.contains(HyperKey.hyperFlags))
     }
 
     private func updateScrollSpeed(shift: Bool, command: Bool, hyperHeld: Bool) {
@@ -223,8 +229,10 @@ final class GridMode {
         remainder.x -= CGFloat(x)
         remainder.y -= CGFloat(y)
         guard x != 0 || y != 0,
-              let event = CGEvent(scrollWheelEvent2Source: nil, units: .pixel, wheelCount: 2,
-                                  wheel1: y, wheel2: x, wheel3: 0) else { return }
+            let event = CGEvent(
+                scrollWheelEvent2Source: nil, units: .pixel, wheelCount: 2,
+                wheel1: y, wheel2: x, wheel3: 0)
+        else { return }
         event.location = scrollPoint
         event.flags = []
         event.post(tap: .cghidEventTap)
@@ -232,11 +240,16 @@ final class GridMode {
 
     private func render() {
         if phase == .scroll {
-            overlay.render([LabelSpec(text: "", typedCount: 0,
-                                      rect: CGRect(x: scrollPoint.x - 5, y: scrollPoint.y - 5, width: 10, height: 10),
-                                      style: .highlighted)],
-                           banner: "Scroll · \(config.scrollKeys.directions) / arrow keys · Shift: 3× · Command + Shift: 6× · Esc: exit",
-                           bannerPoint: scrollPoint)
+            overlay.render(
+                [
+                    LabelSpec(
+                        text: "", typedCount: 0,
+                        rect: CGRect(x: scrollPoint.x - 5, y: scrollPoint.y - 5, width: 10, height: 10),
+                        style: .highlighted)
+                ],
+                banner:
+                    "Scroll · \(config.scrollKeys.directions) / arrow keys · Shift: 3× · Command + Shift: 6× · Esc: exit",
+                bannerPoint: scrollPoint)
             return
         }
         if isChoosingScrollArea {
@@ -246,7 +259,9 @@ final class GridMode {
                 let anchor = CGRect(origin: target.point, size: .zero)
                 return LabelSpec(text: label, typedCount: prefix.count, rect: anchor, style: .normal)
             }
-            let banner = labels.isEmpty ? "No scrollable areas reported · Enter: scroll at pointer · Esc: exit"
+            let banner =
+                labels.isEmpty
+                ? "No scrollable areas reported · Enter: scroll at pointer · Esc: exit"
                 : "Scroll · Type a label to choose an area · Enter: scroll at pointer · Esc: exit"
             overlay.render(outlines + labels, banner: banner, bannerPoint: matches.first?.target.point)
             return
@@ -257,21 +272,26 @@ final class GridMode {
             for (index, cell) in region.cells.enumerated() {
                 labels.append(LabelSpec(text: "", typedCount: 0, rect: cell, style: .outline))
                 if min(cell.width, cell.height) >= 24 {
-                    labels.append(LabelSpec(text: String(region.keys[index]), typedCount: 0,
-                                            rect: CGRect(x: cell.midX - 1, y: cell.midY - 1, width: 2, height: 2),
-                                            style: .normal, fontSize: min(30, max(12, cell.height / 5))))
+                    labels.append(
+                        LabelSpec(
+                            text: String(region.keys[index]), typedCount: 0,
+                            rect: CGRect(x: cell.midX - 1, y: cell.midY - 1, width: 2, height: 2),
+                            style: .normal, fontSize: min(30, max(12, cell.height / 5))))
                 }
             }
         }
         if let center = navigation.point {
-            labels.append(LabelSpec(text: "", typedCount: 0,
-                                    rect: CGRect(x: center.x - 2, y: center.y - 2, width: 4, height: 4), style: .highlighted))
+            labels.append(
+                LabelSpec(
+                    text: "", typedCount: 0,
+                    rect: CGRect(x: center.x - 2, y: center.y - 2, width: 4, height: 4), style: .highlighted))
         }
         let extra = navigation.hasMoreScreens ? " · Tab: screens" : ""
         let escape = navigation.point == nil ? "Esc: exit" : "Esc: move"
         let scroll = config.isModeEnabled(.scroll) ? " · Enter: scroll" : ""
-        overlay.render(labels,
-                       banner: "Grid · \(escape) · Space: click\(scroll) · Backspace: undo\(extra)",
-                       bannerPoint: navigation.point ?? pointerLocation)
+        overlay.render(
+            labels,
+            banner: "Grid · \(escape) · Space: click\(scroll) · Backspace: undo\(extra)",
+            bannerPoint: navigation.point ?? pointerLocation)
     }
 }

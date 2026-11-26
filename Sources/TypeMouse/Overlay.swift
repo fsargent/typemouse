@@ -1,6 +1,6 @@
 import AppKit
-import TypeMouseCore
 import QuartzCore
+import TypeMouseCore
 
 /// One label to draw.
 struct LabelSpec {
@@ -12,7 +12,7 @@ struct LabelSpec {
 
     var text: String
     var typedCount: Int
-    var rect: CGRect // AX coordinates
+    var rect: CGRect  // AX coordinates
     var style: Style
     /// Overrides the overlay's font size for this label.
     var fontSize: CGFloat? = nil
@@ -42,7 +42,8 @@ final class Overlay {
             let cocoa = Geometry.cocoaRect(fromAX: spec.rect, primaryHeight: primaryHeight)
             let center = CGPoint(x: cocoa.midX, y: cocoa.midY)
             guard let (screen, window) = windows.first(where: { $0.screen.frame.contains(center) }) ?? windows.first,
-                  let root = window.contentView?.layer else { continue }
+                let root = window.contentView?.layer
+            else { continue }
             let local = cocoa.offsetBy(dx: -screen.frame.minX, dy: -screen.frame.minY)
             if spec.style == .outline || spec.style == .highlighted {
                 root.addSublayer(outline(local, strong: spec.style == .highlighted))
@@ -55,14 +56,18 @@ final class Overlay {
             if !spec.text.isEmpty {
                 let badge = label(spec, in: local, bounds: root.bounds, scale: screen.backingScaleFactor)
                 if let caption = spec.caption {
-                    let panel = bannerLayer(caption.lines, maxWidth: min(caption.maxWidth, root.bounds.width),
-                                            alignment: .center, scale: screen.backingScaleFactor)
+                    let panel = bannerLayer(
+                        caption.lines, maxWidth: min(caption.maxWidth, root.bounds.width),
+                        alignment: .center, scale: screen.backingScaleFactor)
                     let gap: CGFloat = 6
                     let spaceAbove = panel.bounds.height + gap
-                    badge.frame.origin.y = max(root.bounds.minY, min(badge.frame.minY, root.bounds.maxY - badge.bounds.height - spaceAbove))
-                    panel.frame.origin = CGPoint(x: min(max(root.bounds.minX, badge.frame.midX - panel.bounds.width / 2),
-                                                        root.bounds.maxX - panel.bounds.width),
-                                                 y: badge.frame.maxY + gap)
+                    badge.frame.origin.y = max(
+                        root.bounds.minY, min(badge.frame.minY, root.bounds.maxY - badge.bounds.height - spaceAbove))
+                    panel.frame.origin = CGPoint(
+                        x: min(
+                            max(root.bounds.minX, badge.frame.midX - panel.bounds.width / 2),
+                            root.bounds.maxX - panel.bounds.width),
+                        y: badge.frame.maxY + gap)
                     root.addSublayer(panel)
                 }
                 root.addSublayer(badge)
@@ -72,11 +77,14 @@ final class Overlay {
         let bannerScreen = bannerPoint.map { point in
             Geometry.cocoaRect(fromAX: CGRect(origin: point, size: .zero), primaryHeight: primaryHeight).origin
         }
-        if let banner, let (screen, window) = windows.first(where: { entry in
-            bannerScreen.map { entry.screen.frame.contains($0) } ?? (entry.screen == NSScreen.main)
-        }) ?? windows.first,
-           let root = window.contentView?.layer {
-            let panel = bannerLayer([banner], minWidth: 280, maxWidth: root.bounds.width, scale: screen.backingScaleFactor)
+        if let banner,
+            let (screen, window) = windows.first(where: { entry in
+                bannerScreen.map { entry.screen.frame.contains($0) } ?? (entry.screen == NSScreen.main)
+            }) ?? windows.first,
+            let root = window.contentView?.layer
+        {
+            let panel = bannerLayer(
+                [banner], minWidth: 280, maxWidth: root.bounds.width, scale: screen.backingScaleFactor)
             panel.frame.origin = CGPoint(x: root.bounds.midX - panel.bounds.width / 2, y: root.bounds.maxY - 140)
             root.addSublayer(panel)
         }
@@ -96,7 +104,7 @@ final class Overlay {
     private func syncWindows() {
         let screens = NSScreen.screens
         if windows.count == screens.count, zip(windows, screens).allSatisfy({ $0.screen.frame == $1.frame }) { return }
-        windows.forEach { $0.window.orderOut(nil) }
+        for entry in windows { entry.window.orderOut(nil) }
         windows = screens.map { screen in
             let w = NSWindow(contentRect: screen.frame, styleMask: .borderless, backing: .buffered, defer: false)
             w.isOpaque = false
@@ -124,18 +132,21 @@ final class Overlay {
         let k = max(1, pointSize / 12)
         let highlighted = spec.style == .highlighted
         let fg = highlighted ? NSColor.white : NSColor.black
-        let s = NSMutableAttributedString(string: spec.text.uppercased(), attributes: [.font: font, .foregroundColor: fg])
+        let s = NSMutableAttributedString(
+            string: spec.text.uppercased(), attributes: [.font: font, .foregroundColor: fg])
         if spec.typedCount > 0 {
             let typedUTF16 = (String(spec.text.prefix(spec.typedCount)).uppercased() as NSString).length
-            s.addAttribute(.foregroundColor, value: fg.withAlphaComponent(0.35),
-                           range: NSRange(location: 0, length: min(typedUTF16, s.length)))
+            s.addAttribute(
+                .foregroundColor, value: fg.withAlphaComponent(0.35),
+                range: NSRange(location: 0, length: min(typedUTF16, s.length)))
         }
         let textSize = s.size()
         let pad = CGSize(width: 4 * k, height: 1 * k)
         let size = CGSize(width: ceil(textSize.width) + pad.width * 2, height: ceil(textSize.height) + pad.height * 2)
 
         // Small targets: centered. Wide targets: at the left edge, so labels do not land on text.
-        var origin = rect.width < size.width * 3
+        var origin =
+            rect.width < size.width * 3
             ? CGPoint(x: rect.midX - size.width / 2, y: rect.midY - size.height / 2)
             : CGPoint(x: rect.minX + 2, y: rect.midY - size.height / 2)
         origin.x = min(max(origin.x, bounds.minX), bounds.maxX - size.width)
@@ -154,7 +165,8 @@ final class Overlay {
         let text = CATextLayer()
         text.string = s
         text.contentsScale = scale
-        text.frame = CGRect(x: pad.width, y: pad.height - 0.5, width: ceil(textSize.width), height: ceil(textSize.height))
+        text.frame = CGRect(
+            x: pad.width, y: pad.height - 0.5, width: ceil(textSize.width), height: ceil(textSize.height))
         box.addSublayer(text)
         return box
     }
@@ -169,10 +181,14 @@ final class Overlay {
         return l
     }
 
-    private func bannerLayer(_ lines: [String], minWidth: CGFloat = 0, maxWidth: CGFloat,
-                             alignment: CATextLayerAlignmentMode = .left, scale: CGFloat) -> CALayer {
+    private func bannerLayer(
+        _ lines: [String], minWidth: CGFloat = 0, maxWidth: CGFloat,
+        alignment: CATextLayerAlignmentMode = .left, scale: CGFloat
+    ) -> CALayer {
         let font = NSFont.monospacedSystemFont(ofSize: 15, weight: .medium)
-        let strings = lines.map { NSAttributedString(string: $0, attributes: [.font: font, .foregroundColor: NSColor.white]) }
+        let strings = lines.map {
+            NSAttributedString(string: $0, attributes: [.font: font, .foregroundColor: NSColor.white])
+        }
         let lineHeight = ceil(strings.map { $0.size().height }.max() ?? font.pointSize)
         let textWidth = ceil(strings.map { $0.size().width }.max() ?? 0)
         let horizontalPadding = min(14, maxWidth / 4)
@@ -190,8 +206,9 @@ final class Overlay {
             layer.alignmentMode = alignment
             layer.isWrapped = false
             layer.truncationMode = .end
-            layer.frame = CGRect(x: horizontalPadding, y: height - 8 - CGFloat(index + 1) * lineHeight,
-                                 width: lineWidth, height: lineHeight)
+            layer.frame = CGRect(
+                x: horizontalPadding, y: height - 8 - CGFloat(index + 1) * lineHeight,
+                width: lineWidth, height: lineHeight)
             box.addSublayer(layer)
         }
         return box
