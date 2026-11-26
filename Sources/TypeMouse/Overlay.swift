@@ -27,6 +27,7 @@ final class Overlay {
     var fontSize: CGFloat = 12
 
     static let level = NSWindow.Level(rawValue: NSWindow.Level.popUpMenu.rawValue + 1)
+    static let hintYellow = NSColor(srgbRed: 1, green: 0.85, blue: 0.2, alpha: 1)
 
     init(windowLevel: NSWindow.Level = Overlay.level) { self.windowLevel = windowLevel }
 
@@ -142,7 +143,7 @@ final class Overlay {
 
         let box = CALayer()
         box.frame = CGRect(origin: origin, size: size)
-        box.backgroundColor = (highlighted ? NSColor.systemBlue : NSColor(calibratedRed: 1, green: 0.85, blue: 0.2, alpha: 1)).cgColor
+        box.backgroundColor = (highlighted ? NSColor.systemBlue : Self.hintYellow).cgColor
         box.cornerRadius = 3 * k
         box.borderWidth = min(0.5 * k, 3)
         box.borderColor = NSColor.black.withAlphaComponent(0.5).cgColor
@@ -184,38 +185,15 @@ final class Overlay {
         let lineWidth = width - horizontalPadding * 2
         for (index, line) in strings.enumerated() {
             let layer = CATextLayer()
-            layer.string = fitBannerLine(line, width: lineWidth)
+            layer.string = line
             layer.contentsScale = scale
             layer.alignmentMode = alignment
             layer.isWrapped = false
+            layer.truncationMode = .end
             layer.frame = CGRect(x: horizontalPadding, y: height - 8 - CGFloat(index + 1) * lineHeight,
                                  width: lineWidth, height: lineHeight)
             box.addSublayer(layer)
         }
         return box
-    }
-
-    private func fitBannerLine(_ line: NSAttributedString, width: CGFloat) -> NSAttributedString {
-        guard line.size().width > width, line.length > 0 else { return line }
-        let attributes = line.attributes(at: 0, effectiveRange: nil)
-        let ellipsis = NSAttributedString(string: "…", attributes: attributes)
-        guard ellipsis.size().width <= width else { return NSAttributedString(string: "") }
-
-        // Measure the text that will actually draw so a narrow caption never wraps.
-        let characters = Array(line.string)
-        var best = ellipsis
-        var low = 1
-        var high = characters.count - 1
-        while low <= high {
-            let count = (low + high) / 2
-            let candidate = NSAttributedString(string: String(characters.prefix(count)) + "…", attributes: attributes)
-            if candidate.size().width <= width {
-                best = candidate
-                low = count + 1
-            } else {
-                high = count - 1
-            }
-        }
-        return best
     }
 }

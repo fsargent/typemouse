@@ -187,9 +187,8 @@ final class GridMode {
     private var pointerLocation: CGPoint? { CGEvent(source: nil)?.location }
 
     func flagsChanged(_ flags: CGEventFlags) {
-        let hyper: CGEventFlags = [.maskShift, .maskCommand, .maskControl, .maskAlternate]
         updateScrollSpeed(shift: flags.contains(.maskShift), command: flags.contains(.maskCommand),
-                          hyperHeld: flags.contains(hyper))
+                          hyperHeld: flags.contains(HyperKey.hyperFlags))
     }
 
     private func updateScrollSpeed(shift: Bool, command: Bool, hyperHeld: Bool) {

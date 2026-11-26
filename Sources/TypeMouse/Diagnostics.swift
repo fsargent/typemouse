@@ -138,7 +138,7 @@ enum Diagnostics {
             let e = CGEvent(keyboardEventSource: src, virtualKey: CGKeyCode(spec.keyCode), keyDown: down)
             e?.flags = flags
             e?.post(tap: .cghidEventTap)
-            usleep(30_000)
+            Thread.sleep(forTimeInterval: 0.03)
         }
         print("posted \(string)")
         return 0

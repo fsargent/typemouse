@@ -34,13 +34,13 @@ struct KeyEvent {
 
     var special: Special {
         switch keyCode {
-        case 53: return .escape
-        case 36, 76: return .enter
-        case 51: return .backspace
-        case 48: return .tab
-        case 126: return .up
-        case 125: return .down
-        case 49: return .space
+        case Int64(KeyCode.escape): return .escape
+        case Int64(KeyCode.returnKey), Int64(KeyCode.numpadEnter): return .enter
+        case Int64(KeyCode.backspace): return .backspace
+        case Int64(KeyCode.tab): return .tab
+        case Int64(KeyCode.upArrow): return .up
+        case Int64(KeyCode.downArrow): return .down
+        case Int64(KeyCode.space): return .space
         default: return .other
         }
     }
@@ -104,10 +104,11 @@ final class HotkeyManager {
         installed = true
         var spec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
         InstallEventHandler(GetApplicationEventTarget(), { _, event, userData in
+            guard let userData else { return noErr }
             var hkID = EventHotKeyID()
             GetEventParameter(event, EventParamName(kEventParamDirectObject), EventParamType(typeEventHotKeyID),
                               nil, MemoryLayout<EventHotKeyID>.size, nil, &hkID)
-            let me = Unmanaged<HotkeyManager>.fromOpaque(userData!).takeUnretainedValue()
+            let me = Unmanaged<HotkeyManager>.fromOpaque(userData).takeUnretainedValue()
             me.fire(hkID.id)
             return noErr
         }, 1, &spec, Unmanaged.passUnretained(self).toOpaque(), nil)
@@ -130,8 +131,7 @@ final class KeyCapture {
     private var passthroughKeyUps: Set<Int64> = []
 
     var active: Bool {
-        lock.lock(); defer { lock.unlock() }
-        return _active
+        lock.withLock { _active }
     }
 
     var isStarted: Bool { tap != nil }
@@ -159,18 +159,16 @@ final class KeyCapture {
     }
 
     func setActive(_ on: Bool) {
-        lock.lock()
-        _active = on
-        if !on { passthroughKeyUps = [] }
-        lock.unlock()
+        lock.withLock {
+            _active = on
+            if !on { passthroughKeyUps = [] }
+        }
         if let tap { CGEvent.tapEnable(tap: tap, enable: on) }
     }
 
     /// Carbon must see the release of a hotkey that enabled capture.
     func passNextKeyUp(_ keyCode: Int64) {
-        lock.lock()
-        passthroughKeyUps.insert(keyCode)
-        lock.unlock()
+        lock.withLock { _ = passthroughKeyUps.insert(keyCode) }
     }
 
     fileprivate func handle(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
@@ -191,9 +189,7 @@ final class KeyCapture {
         } else if type == .keyUp {
             let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
             DispatchQueue.main.async { [weak self] in self?.onKeyUp?(keyCode) }
-            lock.lock()
-            let pass = passthroughKeyUps.remove(keyCode) != nil
-            lock.unlock()
+            let pass = lock.withLock { passthroughKeyUps.remove(keyCode) != nil }
             if pass { return Unmanaged.passUnretained(event) }
         } else if type == .flagsChanged {
             let flags = event.flags

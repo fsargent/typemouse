@@ -109,17 +109,11 @@ enum AX {
     static func desktopBounds() -> CGRect {
         let primaryHeight = NSScreen.screens.first?.frame.height ?? 0
         return NSScreen.screens.reduce(CGRect.null) {
-            $0.union(Geometry.cocoaRectToAX($1.frame, primaryHeight: primaryHeight))
+            $0.union(Geometry.axRect(fromCocoa: $1.frame, primaryHeight: primaryHeight))
         }
     }
 
     static var primaryHeight: CGFloat { NSScreen.screens.first?.frame.height ?? 0 }
-}
-
-extension Geometry {
-    static func cocoaRectToAX(_ r: CGRect, primaryHeight: CGFloat) -> CGRect {
-        axRect(fromCocoa: r, primaryHeight: primaryHeight)
-    }
 }
 
 /// Chromium and Electron build their accessibility tree only when asked.
