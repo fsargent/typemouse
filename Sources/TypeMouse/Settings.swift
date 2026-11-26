@@ -5,7 +5,7 @@ import UniformTypeIdentifiers
 
 /// The settings window. It edits the same config file that TypeMouse watches,
 /// so a change in the window and a change in the file have the same effect.
-final class SettingsWindowController {
+final class SettingsWindowController: NSObject, NSWindowDelegate {
     private var window: NSWindow?
     private let model: SettingsModel
 
@@ -15,28 +15,43 @@ final class SettingsWindowController {
     ///     so the current hotkeys reach the window instead of opening a mode.
     init(config: Config, save: @escaping (Config) -> Void, recording: @escaping (Bool) -> Void) {
         model = SettingsModel(config: config, save: save, recording: recording)
+        super.init()
     }
 
     func update(config: Config) {
-        if model.config != config { model.config = config }
+        if model.config != config {
+            model.config = config
+        }
     }
 
     func show() {
         if window == nil {
-            let w = NSWindow(contentViewController: NSHostingController(rootView: SettingsView(model: model)))
-            w.title = "TypeMouse Settings"
-            w.styleMask = [.titled, .closable, .resizable]
-            w.backgroundColor = .textBackgroundColor
-            w.setContentSize(NSSize(width: 810, height: 610))
-            w.isReleasedWhenClosed = false
-            w.center()
-            NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification, object: w, queue: .main) { [weak self] _ in
-                self?.model.stopRecording()
-            }
-            window = w
+            let hosting = NSHostingController(rootView: SettingsView(model: model))
+            let panel = NSWindow(contentViewController: hosting)
+            panel.title = "TypeMouse Settings"
+            panel.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
+            panel.titlebarAppearsTransparent = true
+            panel.titleVisibility = .hidden
+            panel.isMovableByWindowBackground = true
+            panel.backgroundColor = .windowBackgroundColor
+            panel.setContentSize(NSSize(width: 820, height: 620))
+            panel.minSize = NSSize(width: 720, height: 500)
+            panel.isReleasedWhenClosed = false
+            panel.delegate = self
+            panel.center()
+            window = panel
         }
+        model.refreshSystemState()
         NSApp.activate()
         window?.makeKeyAndOrderFront(nil)
+    }
+
+    func windowWillClose(_ notification: Notification) {
+        model.stopRecording()
+    }
+
+    func windowDidBecomeKey(_ notification: Notification) {
+        model.refreshSystemState()
     }
 }
 
@@ -99,6 +114,7 @@ final class SettingsModel: ObservableObject {
     static let slotsPerMode = 2
 
     @Published var config: Config
+    @Published var launchAtLogin = LoginItem.isEnabled
     @Published private(set) var recordingSlot: Slot?
     private let save: (Config) -> Void
     private let recording: (Bool) -> Void
@@ -110,9 +126,22 @@ final class SettingsModel: ObservableObject {
         self.recording = recording
     }
 
-    func commit() { save(config) }
+    func refreshSystemState() {
+        launchAtLogin = LoginItem.isEnabled
+    }
 
-    func hotkeys(_ mode: Mode) -> [String] { config.hotkeys[keyPath: mode.keyPath] }
+    func setLaunchAtLogin(_ enabled: Bool) {
+        LoginItem.set(enabled)
+        launchAtLogin = LoginItem.isEnabled
+    }
+
+    func commit() {
+        save(config)
+    }
+
+    func hotkeys(_ mode: Mode) -> [String] {
+        config.hotkeys[keyPath: mode.keyPath]
+    }
 
     func hotkey(_ slot: Slot) -> String? {
         switch slot {
@@ -125,16 +154,21 @@ final class SettingsModel: ObservableObject {
         }
     }
 
-    func isDefault(_ mode: Mode) -> Bool { hotkeys(mode) == Config.Hotkeys()[keyPath: mode.keyPath] }
+    func isDefault(_ mode: Mode) -> Bool {
+        hotkeys(mode) == Config.Hotkeys()[keyPath: mode.keyPath]
+    }
 
     /// Another slot (in any mode) with the same key combination, if any.
     func conflict(_ slot: Slot) -> Slot? {
         guard config.isModeEnabled(slot.feature),
-              let string = hotkey(slot), let mine = HotkeySpec(string) else { return nil }
+              let string = hotkey(slot),
+              let mine = HotkeySpec(string) else { return nil }
         let modes = Mode.allCases.filter { config.isModeEnabled($0.feature) }.flatMap { mode in
             hotkeys(mode).indices.map { Slot.mode(mode, $0) }
         }
-        let commands = config.isModeEnabled(.windowManagement) ? WindowCommand.allCases.map { Slot.command($0) } : []
+        let commands = config.isModeEnabled(.windowManagement)
+            ? WindowCommand.allCases.map { Slot.command($0) }
+            : []
         return (modes + commands).first { other in
             guard other != slot, let theirs = hotkey(other).flatMap(HotkeySpec.init) else { return false }
             return theirs.keyCode == mine.keyCode && theirs.modifiers == mine.modifiers
@@ -179,16 +213,24 @@ final class SettingsModel: ObservableObject {
         if flags.contains(.control) { mods.insert(.control) }
 
         // Escape with no modifiers cancels.
-        if event.keyCode == 53 && mods.isEmpty { stopRecording(); return }
+        if event.keyCode == 53 && mods.isEmpty {
+            stopRecording()
+            return
+        }
         // A hotkey with no modifier would take that key away from every app.
-        guard !mods.isEmpty, let string = HotkeySpec.configString(keyCode: UInt32(event.keyCode), modifiers: mods) else {
+        guard !mods.isEmpty,
+              let string = HotkeySpec.configString(keyCode: UInt32(event.keyCode), modifiers: mods) else {
             NSSound.beep()
             return
         }
         switch slot {
         case .mode(let mode, let index):
             var list = hotkeys(mode)
-            if list.indices.contains(index) { list[index] = string } else { list.append(string) }
+            if list.indices.contains(index) {
+                list[index] = string
+            } else {
+                list.append(string)
+            }
             config.hotkeys[keyPath: mode.keyPath] = list
         case .command(let command):
             config.hotkeys.windowManagement[command.rawValue] = string
@@ -206,6 +248,8 @@ final class SettingsModel: ObservableObject {
         }
     }
 }
+
+// MARK: - Settings View
 
 struct SettingsView: View {
     private enum Page: String, CaseIterable {
@@ -227,26 +271,36 @@ struct SettingsView: View {
 
         var icon: String {
             switch self {
-            case .general: return "gearshape"
+            case .general: return "gearshape.fill"
             case .click: return "cursorarrow.click"
-            case .windowSelection: return "macwindow"
             case .grid: return "square.grid.3x3"
-            case .windowManagement: return "rectangle.split.2x2"
+            case .windowSelection: return "macwindow"
+            case .windowManagement: return "rectangle.split.2x2.fill"
+            }
+        }
+
+        var tint: Color {
+            switch self {
+            case .general: return Color(nsColor: .systemGray)
+            case .click: return .orange
+            case .grid: return .teal
+            case .windowSelection: return .blue
+            case .windowManagement: return .purple
             }
         }
 
         var introduction: String {
             switch self {
             case .general:
-                return "Set up your Hyper key, launch options, and shared label characters."
+                return "Set up your Hyper key, startup options, and shared hint characters."
             case .click:
-                return "Show a label on each clickable item. Type its label to click it."
-            case .windowSelection:
-                return "Switch windows from a list, the desktop, or Mission Control."
+                return "Show a label on every clickable item and type it to click."
             case .grid:
-                return "Select cells in a 3×3 grid to position the pointer. Each key narrows the target."
+                return "Refine a screen position through a 3×3 grid, or scroll continuously."
+            case .windowSelection:
+                return "Switch windows from a list, visible desktop labels, or Mission Control."
             case .windowManagement:
-                return "Move and resize the focused window with shortcuts that match positions on the display."
+                return "Move and resize the focused window with keyboard layout shortcuts."
             }
         }
     }
@@ -254,174 +308,390 @@ struct SettingsView: View {
     @ObservedObject var model: SettingsModel
     @State private var selection: Page? = .general
     @State private var hintCharacters = ""
-    @State private var launchAtLogin = LoginItem.isEnabled
+
+    private var appVersion: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.1.0"
+    }
 
     var body: some View {
         let page = selection ?? .general
-        NavigationSplitView {
-            List(selection: $selection) {
-                sidebarRow(.general)
-                Section("Modes") {
-                    ForEach(Page.allCases.filter { $0 != .general }, id: \.self) { page in
-                        sidebarRow(page)
-                    }
+        NavigationSplitView(columnVisibility: .constant(.all)) {
+            VStack(spacing: 0) {
+                List(Page.allCases, id: \.self, selection: $selection) { item in
+                    sidebarRow(item)
+                        .tag(item)
                 }
-                .collapsible(false)
-            }
-            .listStyle(.sidebar)
-            .navigationSplitViewColumnWidth(min: 220, ideal: 230, max: 270)
-        } detail: {
-            Form {
-                Section {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Label(page.rawValue, systemImage: page.icon)
-                            .font(.title2.weight(.semibold))
-                            .accessibilityAddTraits(.isHeader)
-                        Text(page.introduction)
+                .listStyle(.sidebar)
+                .scrollContentBackground(.hidden)
+                .padding(.top, 4)
+
+                Divider()
+                    .opacity(0.6)
+
+                HStack {
+                    Button {
+                        NSWorkspace.shared.open(ConfigStore.url)
+                    } label: {
+                        Label("Config file", systemImage: "doc.text")
+                            .font(.callout)
                             .foregroundStyle(.secondary)
                     }
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    if let mode = page.mode {
-                        modeToggle("Enable " + page.rawValue.lowercased(), mode)
-                    }
+                    .buttonStyle(.plain)
+                    .help("Open ~/.config/typemouse/config.json")
+
+                    Spacer()
+
+                    Text("v\(appVersion)")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
                 }
-                pageSections(page)
-                    .disabled(page.mode.map { !model.config.isModeEnabled($0) } ?? false)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 11)
             }
-            .formStyle(.grouped)
-            .scrollContentBackground(.hidden)
-            .background(Color(nsColor: .textBackgroundColor), ignoresSafeAreaEdges: [])
-            .id(page)
+            .navigationSplitViewColumnWidth(min: 215, ideal: 225, max: 250)
+            .toolbar(removing: .sidebarToggle)
+        } detail: {
+            VStack(spacing: 0) {
+                detailHeader(page)
+                Divider()
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 22) {
+                        Text(page.introduction)
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                            .padding(.top, -4)
+
+                        pageContent(page)
+                            .disabled(page.mode.map { !model.config.isModeEnabled($0) } ?? false)
+                            .opacity(page.mode.map { model.config.isModeEnabled($0) ? 1 : 0.55 } ?? 1)
+                    }
+                    .padding(.horizontal, 26)
+                    .padding(.top, 20)
+                    .padding(.bottom, 28)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .id(page)
+            }
+            .background(Color(nsColor: .textBackgroundColor))
+            .ignoresSafeArea(.container, edges: .top)
         }
-        .frame(minWidth: 720, minHeight: 490)
-        .onAppear { hintCharacters = model.config.hintCharacters }
+        .frame(minWidth: 720, minHeight: 500)
+        .onAppear {
+            hintCharacters = model.config.hintCharacters
+            model.refreshSystemState()
+        }
         .onChange(of: model.config.hintCharacters) { _, new in hintCharacters = new }
         .onChange(of: selection) { _, _ in model.stopRecording() }
     }
 
     private func sidebarRow(_ page: Page) -> some View {
-        Label {
-            Text(page.rawValue).foregroundStyle(Color(nsColor: .labelColor))
-        } icon: {
-            Image(systemName: page.icon).foregroundStyle(Color(nsColor: .secondaryLabelColor))
+        HStack(spacing: 10) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(page.tint.gradient)
+                Image(systemName: page.icon)
+                    .font(.system(size: 11.5, weight: .semibold))
+                    .foregroundStyle(.white)
+            }
+            .frame(width: 22, height: 22)
+
+            Text(page.rawValue)
+                .font(.system(size: 13))
         }
-        .tag(page)
+        .padding(.vertical, 3)
+    }
+
+    private func detailHeader(_ page: Page) -> some View {
+        HStack(spacing: 12) {
+            Text(page.rawValue)
+                .font(.title3.weight(.semibold))
+                .accessibilityAddTraits(.isHeader)
+
+            Spacer()
+
+            if let mode = page.mode {
+                HStack(spacing: 8) {
+                    Text(model.config.isModeEnabled(mode) ? "Enabled" : "Disabled")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                    modeSwitch(mode)
+                }
+            }
+        }
+        .padding(.horizontal, 26)
+        .frame(height: 52)
+        .background(Color(nsColor: .textBackgroundColor))
     }
 
     @ViewBuilder
-    private func pageSections(_ page: Page) -> some View {
+    private func pageContent(_ page: Page) -> some View {
         switch page {
         case .general:
-            generalSections
+            generalContent
         case .click:
-            shortcutSection(.click)
-            clickSections
-            Section("Search") {
-                modeToggle("Enable search", .search)
-                Group {
-                    note("Find clickable items by text. Press Enter to click the highlighted match.")
-                    note("Press Slash (/) or Tab in click mode to start a search. Press Backspace on an empty search to return to labels.")
-                    shortcutControls(.search)
-                }
-                .disabled(!model.config.isModeEnabled(.search))
-            }
-        case .windowSelection:
-            windowSelectionSections
+            clickContent
         case .grid:
-            shortcutSection(.grid)
-            Section("Choose a point") {
-                Picker("Preferred hand", selection: setting(\.gridHand)) {
-                    ForEach(GridNavigation.Hand.allCases, id: \.self) { hand in
-                        Text(hand.rawValue.capitalized).tag(hand)
-                    }
-                }
-                note("Use your preferred hand on one display and to refine a selection. With two displays, the first grid keys match each display.")
-                HStack(alignment: .top, spacing: 32) {
-                    gridKeys("Left hand", keys: "W E R\nS D F\nX C V")
-                    gridKeys("Right hand", keys: "U I O\nJ K L\nM , .")
-                }
-                note("Press Backspace to undo a selection. Press Escape to move to the selected point and exit. Press Space to click.")
-                note("Without a selection, Space clicks at the current pointer position and Escape leaves the pointer in place.")
-            }
-            Section("Scroll mode") {
-                modeToggle("Enable scroll mode", .scroll)
-                Group {
-                    note("Use the Scroll mode hotkey to label scrollable areas in the focused window. Type a label to scroll there.")
-                    shortcutControls(.scroll)
-                    note("Press Enter in the scroll picker to scroll at the pointer. From the grid, Enter uses the selected point if there is one.")
-                    Picker("Scroll keys", selection: setting(\.scrollKeys)) {
-                        ForEach(ScrollKeys.allCases, id: \.self) { keys in
-                            Text(keys.displayName).tag(keys)
-                        }
-                    }
-                    numberRow("Scroll speed", unit: "pt/s", range: 50...5000, step: 50, value: setting(\.scrollSpeed))
-                    note("Hold a direction key to scroll. Arrow keys work with every layout. Press Escape to exit.")
-                    note("Hold Shift (⇧) for 3× speed. Hold Command (⌘) + Shift (⇧) for 6× speed.")
-                }
-                .disabled(!model.config.isModeEnabled(.scroll))
-            }
+            gridContent
+        case .windowSelection:
+            windowSelectionContent
         case .windowManagement:
-            windowManagementSections
+            windowManagementContent
         }
     }
 
-    private var windowSelectionSections: some View {
-        Group {
-            Section("Window list") {
-                modeToggle("Enable window list", .windowList)
+    // MARK: - General
+
+    private var generalContent: some View {
+        VStack(alignment: .leading, spacing: 22) {
+            SettingsSection("App") {
+                SettingsToggleRow(
+                    "Launch at login",
+                    subtitle: "Start TypeMouse automatically when you sign in.",
+                    isOn: Binding(
+                        get: { model.launchAtLogin },
+                        set: { model.setLaunchAtLogin($0) }
+                    )
+                )
+            }
+
+            SettingsSection("Keyboard") {
+                SettingsToggleRow(
+                    "Use Caps Lock as Hyper",
+                    subtitle: "Combine Command, Control, Option, and Shift on Caps Lock. Leave off if Karabiner or kanata already maps Hyper.",
+                    isOn: setting(\.capsLockToHyper)
+                )
+            }
+
+            SettingsSection(
+                "Shared labels",
+                footer: "Used by click mode, window pickers, window list, and scroll picker. Earlier characters get priority."
+            ) {
+                SettingsRow("Hint characters") {
+                    HStack(spacing: 8) {
+                        TextField("Hint characters", text: $hintCharacters)
+                            .labelsHidden()
+                            .textFieldStyle(.roundedBorder)
+                            .font(.system(.body, design: .monospaced))
+                            .frame(width: 240)
+                            .onSubmit(saveHintCharacters)
+                        Button("Save", action: saveHintCharacters)
+                            .disabled(!hintCharactersValid || hintCharacters == model.config.hintCharacters)
+                    }
+                }
+            }
+
+            SettingsSection(
+                "Configuration",
+                footer: "Edit per-app click strategies and browser accessibility overrides directly in JSON."
+            ) {
+                SettingsRow("Config file", subtitle: "~/.config/typemouse/config.json") {
+                    Button("Open…") { NSWorkspace.shared.open(ConfigStore.url) }
+                }
+            }
+        }
+    }
+
+    // MARK: - Click
+
+    private var clickContent: some View {
+        VStack(alignment: .leading, spacing: 22) {
+            SettingsSection("Shortcut", footer: shortcutHint(.click)) {
+                hotkeyRow(.click)
+            }
+
+            SettingsSection("Labels") {
+                SettingsToggleRow(
+                    "Prioritize buttons, fields, and links",
+                    subtitle: "Give controls the shortest labels before page links and browser chrome.",
+                    isOn: setting(\.prioritizeLabels)
+                )
+                SettingsCardDivider()
+                numberRow(
+                    "Label size",
+                    unit: "pt",
+                    range: 8...48,
+                    step: 1,
+                    value: Binding(
+                        get: { Int(model.config.labelFontSize) },
+                        set: {
+                            model.config.labelFontSize = Double($0)
+                            model.commit()
+                        }
+                    )
+                )
+            }
+
+            SettingsSection("Clicks") {
+                SettingsToggleRow(
+                    "Restore pointer position",
+                    subtitle: "Put the pointer back after a synthetic click.",
+                    isOn: setting(\.restoreMousePosition)
+                )
+                SettingsCardDivider()
+                SettingsToggleRow(
+                    "Start in chain mode",
+                    subtitle: "Stay in click mode after every click. Press Space in click mode to toggle, or hold Shift for one chain click.",
+                    isOn: setting(\.chainModeByDefault)
+                )
+                SettingsCardDivider()
+                numberRow(
+                    "Chain click delay",
+                    subtitle: "Wait for menus or pages to update before showing new labels.",
+                    unit: "ms",
+                    range: 0...5000,
+                    step: 50,
+                    value: setting(\.chainDelayMs)
+                )
+            }
+
+            SettingsSection(
+                "Search",
+                subtitle: "Find clickable items by text. Press / or Tab in click mode, or assign a direct shortcut."
+            ) {
+                SettingsToggleRow("Enable search", isOn: modeBinding(.search))
                 Group {
-                    note("Show a list of windows on every display. Type a label or highlight a window and press Enter.")
-                    shortcutControls(.window)
+                    SettingsCardDivider()
+                    hotkeyRow(.search)
+                }
+                .disabled(!model.config.isModeEnabled(.search))
+                .opacity(model.config.isModeEnabled(.search) ? 1 : 0.5)
+            }
+        }
+    }
+
+    // MARK: - Grid
+
+    private var gridContent: some View {
+        VStack(alignment: .leading, spacing: 22) {
+            SettingsSection("Shortcut", footer: shortcutHint(.grid)) {
+                hotkeyRow(.grid)
+            }
+
+            SettingsSection(
+                "Pointer grid",
+                footer: "⌫ Undo · Esc Move pointer · Space Click · ↩ Scroll · Tab Switch displays"
+            ) {
+                SettingsRow(
+                    "Preferred hand",
+                    subtitle: "Used on a single display and for refinements. Two displays map left and right hands automatically."
+                ) {
+                    Picker("Preferred hand", selection: setting(\.gridHand)) {
+                        ForEach(GridNavigation.Hand.allCases, id: \.self) { hand in
+                            Text(hand.rawValue.capitalized).tag(hand)
+                        }
+                    }
+                    .labelsHidden()
+                    .frame(width: 110)
+                }
+                SettingsCardDivider()
+                HStack(alignment: .top, spacing: 28) {
+                    KeycapGridView(title: "Left hand", rows: [["W", "E", "R"], ["S", "D", "F"], ["X", "C", "V"]])
+                    KeycapGridView(title: "Right hand", rows: [["U", "I", "O"], ["J", "K", "L"], ["M", ",", "."]])
+                    Spacer()
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
+            }
+
+            SettingsSection(
+                "Scroll mode",
+                subtitle: "Label scrollable areas in the focused window, or press Enter from the grid to scroll there.",
+                footer: "Arrow keys always scroll. Hold ⇧ for 3× speed, or ⌘⇧ for 6× speed."
+            ) {
+                SettingsToggleRow("Enable scroll mode", isOn: modeBinding(.scroll))
+                Group {
+                    SettingsCardDivider()
+                    hotkeyRow(.scroll)
+                    SettingsCardDivider()
+                    SettingsRow("Direction keys") {
+                        Picker("Direction keys", selection: setting(\.scrollKeys)) {
+                            ForEach(ScrollKeys.allCases, id: \.self) { keys in
+                                Text(keys.displayName).tag(keys)
+                            }
+                        }
+                        .labelsHidden()
+                        .frame(width: 140)
+                    }
+                    SettingsCardDivider()
+                    numberRow(
+                        "Scroll speed",
+                        unit: "pt/s",
+                        range: 50...5000,
+                        step: 50,
+                        value: setting(\.scrollSpeed)
+                    )
+                }
+                .disabled(!model.config.isModeEnabled(.scroll))
+                .opacity(model.config.isModeEnabled(.scroll) ? 1 : 0.5)
+            }
+        }
+    }
+
+    // MARK: - Window Selection
+
+    private var windowSelectionContent: some View {
+        VStack(alignment: .leading, spacing: 22) {
+            SettingsSection("Window list", subtitle: "Show a list of windows on every display with stable app letters.") {
+                SettingsToggleRow("Enable window list", isOn: modeBinding(.windowList))
+                Group {
+                    SettingsCardDivider()
+                    hotkeyRow(.window)
                 }
                 .disabled(!model.config.isModeEnabled(.windowList))
+                .opacity(model.config.isModeEnabled(.windowList) ? 1 : 0.5)
             }
-            Section("Window picker") {
-                modeToggle("Enable window picker", .windowPicker)
+
+            SettingsSection("Window picker", subtitle: "Draw a large label directly on each visible window.") {
+                SettingsToggleRow("Enable window picker", isOn: modeBinding(.windowPicker))
                 Group {
-                    note("Show a label on each visible window. Type its label to focus that window.")
-                    shortcutControls(.picker)
+                    SettingsCardDivider()
+                    hotkeyRow(.picker)
                 }
                 .disabled(!model.config.isModeEnabled(.windowPicker))
+                .opacity(model.config.isModeEnabled(.windowPicker) ? 1 : 0.5)
             }
-            Section("Mission Control picker") {
-                modeToggle("Enable Mission Control picker", .missionControl)
+
+            SettingsSection("Mission Control picker", subtitle: "Open Mission Control and label every window preview.") {
+                SettingsToggleRow("Enable Mission Control picker", isOn: modeBinding(.missionControl))
                 Group {
-                    note("Open Mission Control and label its window previews. Type a label to focus that window.")
-                    shortcutControls(.missionControl)
+                    SettingsCardDivider()
+                    hotkeyRow(.missionControl)
                 }
                 .disabled(!model.config.isModeEnabled(.missionControl))
+                .opacity(model.config.isModeEnabled(.missionControl) ? 1 : 0.5)
             }
-            Section("After selection") {
-                Toggle("Start click mode after focusing a window", isOn: setting(\.clickAfterPicker))
-                    .disabled(!model.config.isModeEnabled(.click))
-                note("Both window pickers use this setting.")
+
+            SettingsSection("After selection") {
+                SettingsToggleRow(
+                    "Start click mode after focusing a window",
+                    subtitle: "Applies to Window picker and Mission Control picker.",
+                    isOn: setting(\.clickAfterPicker)
+                )
+                .disabled(!model.config.isModeEnabled(.click))
             }
+
             PinnedAppsSettings(model: model)
         }
     }
 
-    private func modeToggle(_ title: String, _ mode: Config.Mode) -> some View {
-        Toggle(title, isOn: Binding(
-            get: { !model.config.disabledModes.contains(mode.rawValue) },
-            set: { enabled in
-                model.stopRecording()
-                model.config.setModeEnabled(mode, enabled)
-                model.commit()
-            }
-        ))
-        .toggleStyle(.switch)
-    }
+    // MARK: - Window Management
 
-    private var windowManagementSections: some View {
+    private var windowManagementContent: some View {
         let rows: [[WindowCommand]] = [
             [.topLeft, .top, .topRight],
             [.left, .center, .right],
             [.bottomLeft, .bottom, .bottomRight],
         ]
-        return Group {
-            Section("Window layout shortcuts") {
-                Grid(alignment: .topLeading, horizontalSpacing: 8, verticalSpacing: 8) {
+        let footerText: String = {
+            if case .command = model.recordingSlot {
+                return "Press the new key combination. Press Escape to cancel."
+            }
+            return "Edge keys cycle half, two-thirds, and one-third. Center cycles full, half, and third."
+        }()
+
+        return VStack(alignment: .leading, spacing: 22) {
+            SettingsSection("Window layout", footer: footerText) {
+                Grid(alignment: .topLeading, horizontalSpacing: 10, verticalSpacing: 10) {
                     ForEach(rows.indices, id: \.self) { row in
                         GridRow {
                             ForEach(rows[row], id: \.self) { command in
@@ -430,23 +700,24 @@ struct SettingsView: View {
                         }
                     }
                 }
-                note("Edge shortcuts cycle through half, two-thirds, and one-third. Corner shortcuts resize to a quarter.")
-                note("Center cycles through the full usable display, a centered half, and a centered third.")
+                .padding(12)
             }
-            Section("Displays") {
-                LabeledContent(WindowCommand.nextDisplay.title) { slotView(.command(.nextDisplay)) }
+
+            SettingsSection("Displays") {
+                SettingsRow(
+                    WindowCommand.nextDisplay.title,
+                    subtitle: "Keep the window's relative size and position."
+                ) {
+                    slotView(.command(.nextDisplay))
+                }
                 if let other = model.conflict(.command(.nextDisplay)) {
-                    shortcutConflict(other)
+                    conflictBanner(for: .command(.nextDisplay), other: other)
                 }
-                note("Move to next display keeps the window's relative size and position.")
             }
-            Section {
-                if case .command = model.recordingSlot {
-                    note("Press the key combination. Press Escape to cancel.")
-                } else {
-                    note("If another app uses the same hotkey, clear it there or choose a different hotkey here.")
-                }
-                Button("Reset window management hotkeys") {
+
+            HStack {
+                Spacer()
+                Button("Reset window management shortcuts") {
                     model.stopRecording()
                     model.config.hotkeys.windowManagement = [:]
                     model.commit()
@@ -458,86 +729,71 @@ struct SettingsView: View {
 
     private func windowShortcutCell(_ command: WindowCommand) -> some View {
         let slot = SettingsModel.Slot.command(command)
-        return VStack(alignment: .leading, spacing: 5) {
+        return VStack(alignment: .leading, spacing: 6) {
             Text(command.title)
-                .font(.subheadline.weight(.medium))
-                .fixedSize(horizontal: false, vertical: true)
+                .font(.caption.weight(.medium))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
             slotView(slot)
-            if let other = model.conflict(slot) { shortcutConflict(other) }
-        }
-        .padding(8)
-        .frame(maxWidth: .infinity, minHeight: 66, alignment: .topLeading)
-        .background(.quaternary.opacity(0.45), in: RoundedRectangle(cornerRadius: 8))
-    }
-
-    private func shortcutConflict(_ other: SettingsModel.Slot) -> some View {
-        Text("This hotkey is also used by \(other.title).")
-            .font(.caption)
-            .foregroundStyle(.red)
-            .fixedSize(horizontal: false, vertical: true)
-    }
-
-    private var generalSections: some View {
-        Group {
-            Section("Startup") {
-                Toggle("Launch at login", isOn: Binding(
-                    get: { launchAtLogin },
-                    set: { LoginItem.set($0); launchAtLogin = LoginItem.isEnabled }))
-            }
-            Section("Keyboard") {
-                Toggle("Use Caps Lock as Hyper", isOn: setting(\.capsLockToHyper))
-                note("Hyper combines Command, Control, Option, and Shift. Leave this off if your keyboard or remapper already provides Hyper.")
-            }
-            Section("Shared labels") {
-                LabeledContent("Hint characters") {
-                    HStack {
-                        TextField("Hint characters", text: $hintCharacters)
-                            .labelsHidden()
-                            .font(.system(.body, design: .monospaced))
-                            .onSubmit(saveHintCharacters)
-                        Button("Save", action: saveHintCharacters)
-                            .disabled(!hintCharactersValid || hintCharacters == model.config.hintCharacters)
-                    }
-                }
-                note("Click mode, the window picker, and the window list use these characters. The first characters have priority.")
-            }
-            Section("Config file") {
-                Button("Open config file") { NSWorkspace.shared.open(ConfigStore.url) }
-                note("Use the file to edit per-app click strategies and other advanced settings.")
+            if let other = model.conflict(slot) {
+                Text("Used by \(other.title)")
+                    .font(.caption2)
+                    .foregroundStyle(.red)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
+        .padding(10)
+        .frame(maxWidth: .infinity, minHeight: 62, alignment: .topLeading)
+        .background(Color(nsColor: .textBackgroundColor), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.75)
+        )
     }
 
-    private var clickSections: some View {
-        Group {
-            Section("Labels") {
-                Toggle("Give buttons, fields, and links the shortest labels", isOn: setting(\.prioritizeLabels))
-                numberRow("Label size", unit: "pt", range: 8...48, step: 1, value: Binding(
-                    get: { Int(model.config.labelFontSize) },
-                    set: { model.config.labelFontSize = Double($0); model.commit() }))
+    // MARK: - Shared Controls
+
+    private func modeBinding(_ mode: Config.Mode) -> Binding<Bool> {
+        Binding(
+            get: { !model.config.disabledModes.contains(mode.rawValue) },
+            set: { enabled in
+                model.stopRecording()
+                model.config.setModeEnabled(mode, enabled)
+                model.commit()
             }
-            Section("Clicks") {
-                Toggle("Put the pointer back after a click", isOn: setting(\.restoreMousePosition))
+        )
+    }
+
+    private func modeSwitch(_ mode: Config.Mode) -> some View {
+        Toggle("", isOn: modeBinding(mode))
+            .labelsHidden()
+            .toggleStyle(.switch)
+            .controlSize(.small)
+    }
+
+    private func setting<Value>(_ path: WritableKeyPath<Config, Value>) -> Binding<Value> {
+        Binding(
+            get: { model.config[keyPath: path] },
+            set: {
+                model.config[keyPath: path] = $0
+                model.commit()
             }
-            Section("Chain clicks") {
-                Toggle("Start click mode with chain clicks on", isOn: setting(\.chainModeByDefault))
-                numberRow("Delay before new labels", unit: "ms", range: 0...5000, step: 50,
-                          value: setting(\.chainDelayMs))
-                note("Press Space in click mode to turn chain clicks on or off. Hold Shift while you type a label to chain one click.")
-            }
+        )
+    }
+
+    private func shortcutHint(_ mode: SettingsModel.Mode) -> String {
+        if case .mode(let activeMode, _) = model.recordingSlot, activeMode == mode {
+            return "Press the key combination. Press Escape to cancel."
         }
-    }
-
-    private func shortcutSection(_ mode: SettingsModel.Mode) -> some View {
-        Section("Shortcut") { shortcutControls(mode) }
+        return "Click a shortcut to record a new key combination, or add a second one."
     }
 
     @ViewBuilder
-    private func shortcutControls(_ mode: SettingsModel.Mode) -> some View {
-        LabeledContent("Hotkeys") {
-            HStack {
+    private func hotkeyRow(_ mode: SettingsModel.Mode) -> some View {
+        SettingsRow("Hotkeys") {
+            HStack(spacing: 8) {
                 ForEach(0..<SettingsModel.slotsPerMode, id: \.self) { index in
-                    slotView(SettingsModel.Slot.mode(mode, index))
+                    slotView(.mode(mode, index))
                 }
                 Button("Reset") { model.reset(mode) }
                     .disabled(model.isDefault(mode))
@@ -546,51 +802,49 @@ struct SettingsView: View {
         }
         ForEach(0..<SettingsModel.slotsPerMode, id: \.self) { index in
             let slot = SettingsModel.Slot.mode(mode, index)
-            if let other = model.conflict(slot), let hotkey = model.hotkey(slot) {
-                Text("\(HotkeySpec(hotkey)?.displayString ?? hotkey) is also used by \(other.title).")
-                    .font(.caption).foregroundStyle(.red)
+            if let other = model.conflict(slot) {
+                conflictBanner(for: slot, other: other)
             }
         }
-        if case .mode(let activeMode, _) = model.recordingSlot, activeMode == mode {
-            note("Press the key combination. Press Escape to cancel.")
-        } else {
-            note("Click a hotkey to change it, or add a second one.")
+    }
+
+    private func conflictBanner(for slot: SettingsModel.Slot, other: SettingsModel.Slot) -> some View {
+        let label = model.hotkey(slot).map { HotkeySpec($0)?.displayString ?? $0 } ?? "This hotkey"
+        return HStack(spacing: 6) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.caption)
+            Text("\(label) is also used by \(other.title).")
+                .font(.caption)
         }
+        .foregroundStyle(.red)
+        .padding(.horizontal, 14)
+        .padding(.bottom, 10)
     }
 
-    private func setting<Value>(_ path: WritableKeyPath<Config, Value>) -> Binding<Value> {
-        Binding(get: { model.config[keyPath: path] },
-                set: { model.config[keyPath: path] = $0; model.commit() })
-    }
-
-    private func note(_ text: String) -> some View {
-        Text(text)
-            .font(.callout)
-            .foregroundStyle(.secondary)
-            .fixedSize(horizontal: false, vertical: true)
-            .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private func gridKeys(_ title: String, keys: String) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title).font(.caption).foregroundStyle(.secondary)
-            Text(keys).font(.system(.body, design: .monospaced))
-        }
-    }
-
-    /// A number setting: the title on the left, the field (with its unit and a stepper) on the right.
-    private func numberRow(_ title: String, unit: String, range: ClosedRange<Int>, step: Int, value: Binding<Int>) -> some View {
-        let clamped = Binding(get: { value.wrappedValue },
-                              set: { value.wrappedValue = min(max($0, range.lowerBound), range.upperBound) })
-        return LabeledContent(title) {
-            HStack(spacing: 4) {
+    private func numberRow(
+        _ title: String,
+        subtitle: String? = nil,
+        unit: String,
+        range: ClosedRange<Int>,
+        step: Int,
+        value: Binding<Int>
+    ) -> some View {
+        let clamped = Binding(
+            get: { value.wrappedValue },
+            set: { value.wrappedValue = min(max($0, range.lowerBound), range.upperBound) }
+        )
+        return SettingsRow(title, subtitle: subtitle) {
+            HStack(spacing: 6) {
                 TextField(title, value: clamped, format: .number)
                     .labelsHidden()
                     .textFieldStyle(.roundedBorder)
                     .multilineTextAlignment(.trailing)
                     .frame(width: 64)
-                Text(unit).foregroundStyle(.secondary)
-                Stepper(title, value: clamped, in: range, step: step).labelsHidden()
+                Text(unit)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                Stepper(title, value: clamped, in: range, step: step)
+                    .labelsHidden()
             }
         }
     }
@@ -599,37 +853,238 @@ struct SettingsView: View {
     private func slotView(_ slot: SettingsModel.Slot) -> some View {
         let recording = model.recordingSlot == slot
         if let hotkey = model.hotkey(slot) {
-            HStack(spacing: 2) {
-                Button(recording ? "Press keys…" : (HotkeySpec(hotkey)?.displayString ?? hotkey)) { model.record(slot) }
-                    .frame(minWidth: 76)
-                Button { model.remove(slot) } label: { Image(systemName: "xmark.circle.fill") }
-                    .buttonStyle(.borderless)
-                    .accessibilityLabel("Clear \(HotkeySpec(hotkey)?.displayString ?? hotkey)")
-                    .help("Clear this hotkey")
-            }
+            let display = HotkeySpec(hotkey)?.displayString ?? hotkey
+            HotkeyPill(
+                title: recording ? "Press keys…" : display,
+                isRecording: recording,
+                onRecord: { model.record(slot) },
+                onClear: { model.remove(slot) },
+                clearLabel: "Clear \(display)"
+            )
         } else if case .mode(let mode, let index) = slot {
             if index == model.hotkeys(mode).count {
-                HStack(spacing: 2) {
-                    if index == 0 && !recording { Text("Not set").foregroundStyle(.secondary) }
-                    Button(recording ? "Press keys…" : "+ Add") { model.record(slot) }
-                        .frame(minWidth: 76)
-                }
+                HotkeyPill(
+                    title: recording ? "Press keys…" : (index == 0 ? "Record shortcut" : "+ Add"),
+                    isRecording: recording,
+                    isEmpty: !recording,
+                    onRecord: { model.record(slot) }
+                )
             }
         } else {
-            Button(recording ? "Press keys…" : "Add hotkey") { model.record(slot) }
+            HotkeyPill(
+                title: recording ? "Press keys…" : "Set shortcut",
+                isRecording: recording,
+                isEmpty: !recording,
+                onRecord: { model.record(slot) }
+            )
         }
     }
 
     private var hintCharactersValid: Bool {
-        Set(hintCharacters.lowercased()).count >= 2
+        let cleaned = hintCharacters.lowercased().filter { !$0.isWhitespace && $0 != "/" }
+        return Set(cleaned).count >= 2 && cleaned.count == hintCharacters.count
     }
 
     private func saveHintCharacters() {
-        guard hintCharactersValid else { NSSound.beep(); return }
+        guard hintCharactersValid else {
+            NSSound.beep()
+            return
+        }
         model.config.hintCharacters = hintCharacters.lowercased()
         model.commit()
     }
 }
+
+// MARK: - Reusable Settings Chrome
+
+private struct SettingsSection<Content: View>: View {
+    let title: String
+    let subtitle: String?
+    let footer: String?
+    @ViewBuilder let content: Content
+
+    init(_ title: String, subtitle: String? = nil, footer: String? = nil, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.subtitle = subtitle
+        self.footer = footer
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 13, weight: .semibold))
+                if let subtitle {
+                    Text(subtitle)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .padding(.horizontal, 2)
+
+            VStack(alignment: .leading, spacing: 0) {
+                content
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .strokeBorder(Color.primary.opacity(0.07), lineWidth: 0.5)
+            )
+
+            if let footer {
+                Text(footer)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 2)
+            }
+        }
+    }
+}
+
+private struct SettingsRow<Control: View>: View {
+    let title: String
+    let subtitle: String?
+    @ViewBuilder let control: Control
+
+    init(_ title: String, subtitle: String? = nil, @ViewBuilder control: () -> Control) {
+        self.title = title
+        self.subtitle = subtitle
+        self.control = control()
+    }
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 16) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 13))
+                if let subtitle {
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            Spacer(minLength: 12)
+            control
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+    }
+}
+
+private struct SettingsToggleRow: View {
+    let title: String
+    let subtitle: String?
+    @Binding var isOn: Bool
+
+    init(_ title: String, subtitle: String? = nil, isOn: Binding<Bool>) {
+        self.title = title
+        self.subtitle = subtitle
+        _isOn = isOn
+    }
+
+    var body: some View {
+        SettingsRow(title, subtitle: subtitle) {
+            Toggle(title, isOn: $isOn)
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .controlSize(.small)
+        }
+    }
+}
+
+private struct SettingsCardDivider: View {
+    var body: some View {
+        Divider()
+            .padding(.leading, 14)
+    }
+}
+
+private struct HotkeyPill: View {
+    let title: String
+    let isRecording: Bool
+    var isEmpty: Bool = false
+    let onRecord: () -> Void
+    var onClear: (() -> Void)? = nil
+    var clearLabel: String = "Clear shortcut"
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Button(action: onRecord) {
+                Text(title)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(isRecording ? Color.accentColor : (isEmpty ? .secondary : .primary))
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 4)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            if let onClear, !isRecording {
+                Button(action: onClear) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 16, height: 16)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .padding(.trailing, 5)
+                .accessibilityLabel(clearLabel)
+                .help("Clear this hotkey")
+            }
+        }
+        .background(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(isRecording ? Color.accentColor.opacity(0.12) : Color(nsColor: .controlBackgroundColor))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .strokeBorder(
+                    isRecording ? Color.accentColor : Color.primary.opacity(0.14),
+                    lineWidth: isRecording ? 1.25 : 0.75
+                )
+        )
+    }
+}
+
+private struct KeycapGridView: View {
+    let title: String
+    let rows: [[String]]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(.caption.weight(.medium))
+                .foregroundStyle(.secondary)
+            VStack(spacing: 4) {
+                ForEach(rows.indices, id: \.self) { row in
+                    HStack(spacing: 4) {
+                        ForEach(rows[row], id: \.self) { key in
+                            Text(key)
+                                .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                                .frame(width: 26, height: 24)
+                                .background(
+                                    Color(nsColor: .controlBackgroundColor),
+                                    in: RoundedRectangle(cornerRadius: 5, style: .continuous)
+                                )
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 5, style: .continuous)
+                                        .strokeBorder(Color.primary.opacity(0.14), lineWidth: 0.75)
+                                )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Pinned Apps
 
 private struct PinnedAppsSettings: View {
     @ObservedObject var model: SettingsModel
@@ -637,43 +1092,54 @@ private struct PinnedAppsSettings: View {
     @State private var showPinMessage = false
 
     var body: some View {
-        Section("Pinned apps") {
-            Text("Give an app a fixed letter in the window list and window picker. The window list can also launch pinned apps.")
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            ForEach(model.config.pins.sorted(by: { $0.key < $1.key }), id: \.key) { letter, bundleID in
+        let sortedPins = model.config.pins.sorted { $0.key < $1.key }
+        SettingsSection(
+            "Pinned apps",
+            subtitle: "Give an app a fixed letter in the window list and pickers. The window list can also launch pinned apps.",
+            footer: model.config.availableWindowPinLetters.isEmpty
+                ? "All letters are in use. Remove a pin to free a letter."
+                : nil
+        ) {
+            ForEach(Array(sortedPins.enumerated()), id: \.element.key) { index, entry in
+                if index > 0 { SettingsCardDivider() }
+                let (letter, bundleID) = entry
                 let name = appName(bundleID)
-                LabeledContent(name) {
-                    Picker("Pinned letter for \(name)", selection: Binding(
-                        get: { letter },
-                        set: { if model.config.setWindowPin($0, for: bundleID) { model.commit() } })) {
-                        ForEach((model.config.availableWindowPinLetters + [letter]).sorted(), id: \.self) { choice in
-                            Text(choice.uppercased()).tag(choice)
+                SettingsRow(name) {
+                    HStack(spacing: 8) {
+                        Picker("Pinned letter for \(name)", selection: Binding(
+                            get: { letter },
+                            set: { if model.config.setWindowPin($0, for: bundleID) { model.commit() } }
+                        )) {
+                            ForEach((model.config.availableWindowPinLetters + [letter]).sorted(), id: \.self) { choice in
+                                Text(choice.uppercased()).tag(choice)
+                            }
                         }
+                        .labelsHidden()
+                        .frame(width: 56)
+
+                        Button {
+                            model.config.removeWindowPin(for: bundleID)
+                            model.commit()
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.borderless)
+                        .accessibilityLabel("Remove pin for \(name)")
+                        .help("Remove pin for \(name)")
                     }
-                    .labelsHidden()
-                    Button {
-                        model.config.removeWindowPin(for: bundleID)
-                        model.commit()
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                    }
-                    .buttonStyle(.borderless)
-                    .accessibilityLabel("Remove pin for \(name)")
-                    .help("Remove pin for \(name)")
                 }
             }
+
+            if !sortedPins.isEmpty { SettingsCardDivider() }
 
             HStack {
                 Button("Pin an app…", action: chooseApp)
                     .disabled(model.config.availableWindowPinLetters.isEmpty)
-                Button("Open config file") { NSWorkspace.shared.open(ConfigStore.url) }
+                Spacer()
             }
-            if model.config.availableWindowPinLetters.isEmpty {
-                Text("All letters are in use. Remove a pin to free a letter.").font(.callout).foregroundStyle(.secondary)
-            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
         }
         .alert("Pin an app", isPresented: $showPinMessage) {
             Button("OK", role: .cancel) {}
