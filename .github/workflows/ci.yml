@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: ["main"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check formatting and lint rules
+        run: swift format lint --strict --configuration .swift-format -r Sources Tests
+
+      - name: Run unit tests
+        run: swift test
+
+      - name: Build release binary
+        run: swift build -c release

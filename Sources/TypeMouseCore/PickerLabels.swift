@@ -5,7 +5,7 @@
 public enum PickerLabels {
     public struct Item: Equatable {
         public let windowID: UInt32
-        public let appID: String   // bundle identifier, or name when there is none
+        public let appID: String  // bundle identifier, or name when there is none
         public let appName: String
 
         public init(windowID: UInt32, appID: String, appName: String) {
@@ -20,8 +20,11 @@ public enum PickerLabels {
     ///     other apps skip pinned letters and use the next letter of their name.
     ///   - windowKeys: characters that tell apart several windows of one app (the hint characters).
     /// - Returns: window id -> label.
-    public static func assign(_ items: [Item], pins: [Character: String] = [:], windowKeys: [Character]) -> [UInt32: String] {
-        let pinnedKey = Dictionary(pins.map { ($0.value, Character($0.key.lowercased())) }, uniquingKeysWith: { a, _ in a })
+    public static func assign(_ items: [Item], pins: [Character: String] = [:], windowKeys: [Character]) -> [UInt32:
+        String]
+    {
+        let pinnedKey = Dictionary(
+            pins.map { ($0.value, Character($0.key.lowercased())) }, uniquingKeysWith: { a, _ in a })
         let windowKeys = Hints.unique(windowKeys.map { Character($0.lowercased()) })
 
         // App id -> its windows, oldest first. Window IDs grow over time, so the order is stable.
@@ -37,7 +40,8 @@ public enum PickerLabels {
         let reserved = Set(pinnedKey.filter { windows[$0.key] != nil }.values)
         var buckets: [Character: [String]] = [:]
         for id in windows.keys {
-            let key = pinnedKey[id]
+            let key =
+                pinnedKey[id]
                 ?? letters(names[id] ?? id).first(where: { !reserved.contains($0) })
                 ?? Array("abcdefghijklmnopqrstuvwxyz").first(where: { !reserved.contains($0) })
                 ?? "a"
@@ -46,7 +50,9 @@ public enum PickerLabels {
 
         var result: [UInt32: String] = [:]
         for (key, apps) in buckets {
-            let sortedApps = apps.sorted { (names[$0] ?? $0).localizedCaseInsensitiveCompare(names[$1] ?? $1) == .orderedAscending }
+            let sortedApps = apps.sorted {
+                (names[$0] ?? $0).localizedCaseInsensitiveCompare(names[$1] ?? $1) == .orderedAscending
+            }
             let total = sortedApps.reduce(0) { $0 + windows[$1]!.count }
 
             if total == 1 {

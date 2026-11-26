@@ -88,9 +88,12 @@ final class HyperKey {
             return true
         }
         let mask = (1 << CGEventType.keyDown.rawValue) | (1 << CGEventType.keyUp.rawValue)
-        guard let tap = CGEvent.tapCreate(tap: .cgSessionEventTap, place: .headInsertEventTap, options: .defaultTap,
-                                          eventsOfInterest: CGEventMask(mask), callback: hyperTapCallback,
-                                          userInfo: Unmanaged.passUnretained(self).toOpaque()) else { return false }
+        guard
+            let tap = CGEvent.tapCreate(
+                tap: .cgSessionEventTap, place: .headInsertEventTap, options: .defaultTap,
+                eventsOfInterest: CGEventMask(mask), callback: hyperTapCallback,
+                userInfo: Unmanaged.passUnretained(self).toOpaque())
+        else { return false }
         self.tap = tap
         let source = CFMachPortCreateRunLoopSource(nil, tap, 0)
         // Its own thread, like the key capture tap: a slow main thread must not delay typing.
@@ -121,7 +124,9 @@ final class HyperKey {
     }
 }
 
-private func hyperTapCallback(proxy: CGEventTapProxy, type: CGEventType, event: CGEvent, refcon: UnsafeMutableRawPointer?) -> Unmanaged<CGEvent>? {
+private func hyperTapCallback(
+    proxy: CGEventTapProxy, type: CGEventType, event: CGEvent, refcon: UnsafeMutableRawPointer?
+) -> Unmanaged<CGEvent>? {
     guard let refcon else { return Unmanaged.passUnretained(event) }
     return Unmanaged<HyperKey>.fromOpaque(refcon).takeUnretainedValue().handle(type: type, event: event)
 }

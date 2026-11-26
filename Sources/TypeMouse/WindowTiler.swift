@@ -16,12 +16,14 @@ final class WindowTiler {
     func apply(_ command: WindowCommand, enhancedApps: [String]) {
         revision &+= 1
         guard let app = NSWorkspace.shared.frontmostApplication,
-              app.processIdentifier != ProcessInfo.processInfo.processIdentifier else { return }
+            app.processIdentifier != ProcessInfo.processInfo.processIdentifier
+        else { return }
         let application = AXUIElementCreateApplication(app.processIdentifier)
         let keepEnhanced = enhancedApps.contains(app.bundleIdentifier ?? "")
         guard let window = application.element(kAXFocusedWindowAttribute),
-              window.bool("AXFullScreen") != true,
-              let frame = window.frame else { return }
+            window.bool("AXFullScreen") != true,
+            let frame = window.frame
+        else { return }
 
         let primaryHeight = AX.primaryHeight
         let screens = NSScreen.screens.sorted { a, b in
@@ -38,15 +40,18 @@ final class WindowTiler {
             let destination = Geometry.axRect(fromCocoa: next.visibleFrame, primaryHeight: primaryHeight)
             lastPlacement = nil
             let target = WindowLayout.move(frame, from: bounds, to: destination)
-            if let applied = place(window, in: application, at: target, original: frame,
-                                   anchorIn: destination, changesDisplay: true),
-               !Geometry.nearlyEqual(applied, target) {
+            if let applied = place(
+                window, in: application, at: target, original: frame,
+                anchorIn: destination, changesDisplay: true),
+                !Geometry.nearlyEqual(applied, target)
+            {
                 let requestedRevision = revision
                 // Some apps update their resize limits after the display move settles.
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) { [weak self] in
                     guard let self, self.revision == requestedRevision,
-                          NSWorkspace.shared.frontmostApplication?.processIdentifier == app.processIdentifier,
-                          let current = window.frame, Geometry.nearlyEqual(current, applied) else { return }
+                        NSWorkspace.shared.frontmostApplication?.processIdentifier == app.processIdentifier,
+                        let current = window.frame, Geometry.nearlyEqual(current, applied)
+                    else { return }
                     _ = self.place(window, in: application, at: target, original: current, anchorIn: destination)
                 }
             }
@@ -56,34 +61,45 @@ final class WindowTiler {
         let frames = command.frames(in: bounds)
         let step: Int
         if let last = lastPlacement, command == last.command, CFEqual(window, last.window),
-           bounds == last.bounds, Geometry.nearlyEqual(frame, last.frame) {
+            bounds == last.bounds, Geometry.nearlyEqual(frame, last.frame)
+        {
             step = (last.step + 1) % frames.count
         } else {
             step = 0
         }
         lastPlacement = nil
         let target = frames[step]
-        guard let applied = place(window, in: application, at: target, original: frame,
-                                  anchorIn: bounds, keepEnhanced: keepEnhanced)
-                ?? (keepEnhanced ? window.frame : nil) else { return }
+        guard
+            let applied = place(
+                window, in: application, at: target, original: frame,
+                anchorIn: bounds, keepEnhanced: keepEnhanced)
+                ?? (keepEnhanced ? window.frame : nil)
+        else { return }
         lastPlacement = Placement(window: window, command: command, bounds: bounds, step: step, frame: applied)
         if keepEnhanced, applied.size != target.size {
             let requestedRevision = revision
             // A browser can drop the resize while its move animation is still running.
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
                 guard let self, self.revision == requestedRevision,
-                      NSWorkspace.shared.frontmostApplication?.processIdentifier == app.processIdentifier,
-                      let current = window.frame, Geometry.nearlyEqual(current, applied) else { return }
+                    NSWorkspace.shared.frontmostApplication?.processIdentifier == app.processIdentifier,
+                    let current = window.frame, Geometry.nearlyEqual(current, applied)
+                else { return }
                 guard self.resize(window, to: target.size),
-                      let settled = self.finishPlacement(window, at: target, in: bounds,
-                                                         retrySize: false, repeatMove: false) else { return }
-                self.lastPlacement = Placement(window: window, command: command, bounds: bounds, step: step, frame: settled)
+                    let settled = self.finishPlacement(
+                        window, at: target, in: bounds,
+                        retrySize: false, repeatMove: false)
+                else { return }
+                self.lastPlacement = Placement(
+                    window: window, command: command, bounds: bounds, step: step, frame: settled)
             }
         }
     }
 
-    private func place(_ window: AXUIElement, in application: AXUIElement, at target: CGRect, original: CGRect, anchorIn bounds: CGRect,
-                       changesDisplay: Bool = false, keepEnhanced: Bool = false) -> CGRect? {
+    private func place(
+        _ window: AXUIElement, in application: AXUIElement, at target: CGRect, original: CGRect,
+        anchorIn bounds: CGRect,
+        changesDisplay: Bool = false, keepEnhanced: Bool = false
+    ) -> CGRect? {
         // Enhanced accessibility can animate each frame write. Pause it while setting the frame.
         // Chromium can apply the change even when the AX setter reports an error.
         let enhanced = "AXEnhancedUserInterface"
@@ -95,8 +111,10 @@ final class WindowTiler {
         var canMove = DarwinBoolean(false)
         var canResize = DarwinBoolean(false)
         guard AXUIElementIsAttributeSettable(window, kAXPositionAttribute as CFString, &canMove) == .success,
-              canMove.boolValue else { return nil }
-        let resizable = AXUIElementIsAttributeSettable(window, kAXSizeAttribute as CFString, &canResize) == .success
+            canMove.boolValue
+        else { return nil }
+        let resizable =
+            AXUIElementIsAttributeSettable(window, kAXSizeAttribute as CFString, &canResize) == .success
             && canResize.boolValue
         let sizeChanges = original.size != target.size
         guard !sizeChanges || resizable || changesDisplay else { return nil }
@@ -113,12 +131,15 @@ final class WindowTiler {
             return nil
         }
 
-        return finishPlacement(window, at: target, in: bounds, retrySize: changesDisplay && resizable,
-                               repeatMove: !keepEnhanced)
+        return finishPlacement(
+            window, at: target, in: bounds, retrySize: changesDisplay && resizable,
+            repeatMove: !keepEnhanced)
     }
 
-    private func finishPlacement(_ window: AXUIElement, at target: CGRect, in bounds: CGRect,
-                                 retrySize: Bool, repeatMove: Bool) -> CGRect? {
+    private func finishPlacement(
+        _ window: AXUIElement, at target: CGRect, in bounds: CGRect,
+        retrySize: Bool, repeatMove: Bool
+    ) -> CGRect? {
         if repeatMove { _ = move(window, to: target.origin) }
         guard var resized = window.frame else { return nil }
         // AppKit can clip a resize until the window has entered the destination display.
@@ -128,9 +149,15 @@ final class WindowTiler {
 
         // Apps can enforce a minimum size or adjust position during a resize.
         var point = target.origin
-        if target.maxX == bounds.maxX && target.minX != bounds.minX { point.x = max(bounds.minX, bounds.maxX - resized.width) }
-        if target.maxY == bounds.maxY && target.minY != bounds.minY { point.y = max(bounds.minY, bounds.maxY - resized.height) }
-        if abs(target.midX - bounds.midX) <= 1 && target.width < bounds.width { point.x = bounds.midX - resized.width / 2 }
+        if target.maxX == bounds.maxX && target.minX != bounds.minX {
+            point.x = max(bounds.minX, bounds.maxX - resized.width)
+        }
+        if target.maxY == bounds.maxY && target.minY != bounds.minY {
+            point.y = max(bounds.minY, bounds.maxY - resized.height)
+        }
+        if abs(target.midX - bounds.midX) <= 1 && target.width < bounds.width {
+            point.x = bounds.midX - resized.width / 2
+        }
         if point != resized.origin { _ = move(window, to: point) }
         return window.frame
     }

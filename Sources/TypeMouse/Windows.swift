@@ -4,7 +4,7 @@ import TypeMouseCore
 
 struct WindowInfo {
     let app: NSRunningApplication
-    let window: AXUIElement?    // nil: pinned app that is not running, or running with no windows
+    let window: AXUIElement?  // nil: pinned app that is not running, or running with no windows
     let id: CGWindowID?
     let title: String
     let minimized: Bool
@@ -24,14 +24,17 @@ final class WindowProvider {
     func startTracking() {
         seedFromZOrder()
         let nc = NSWorkspace.shared.notificationCenter
-        nc.addObserver(forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main) { [weak self] n in
+        nc.addObserver(forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main) {
+            [weak self] n in
             guard let app = n.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication else { return }
             self?.observe(app)
             self?.noteFocusedWindow(of: app.processIdentifier)
         }
-        nc.addObserver(forName: NSWorkspace.didTerminateApplicationNotification, object: nil, queue: .main) { [weak self] n in
+        nc.addObserver(forName: NSWorkspace.didTerminateApplicationNotification, object: nil, queue: .main) {
+            [weak self] n in
             guard let app = n.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
-                  let obs = self?.observers.removeValue(forKey: app.processIdentifier) else { return }
+                let obs = self?.observers.removeValue(forKey: app.processIdentifier)
+            else { return }
             CFRunLoopRemoveSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(obs), .defaultMode)
         }
         for app in NSWorkspace.shared.runningApplications where app.activationPolicy == .regular { observe(app) }
@@ -51,9 +54,12 @@ final class WindowProvider {
     /// Windows on the current Space, plus minimized windows and windows of hidden apps.
     /// Sorted most recently used first.
     /// - Parameter only: limit the query to these processes (faster when the caller knows them).
-    func list(excluding ownPID: pid_t = ProcessInfo.processInfo.processIdentifier, only: Set<pid_t>? = nil) -> [WindowInfo] {
+    func list(excluding ownPID: pid_t = ProcessInfo.processInfo.processIdentifier, only: Set<pid_t>? = nil)
+        -> [WindowInfo]
+    {
         let apps = NSWorkspace.shared.runningApplications.filter {
-            $0.activationPolicy == .regular && $0.processIdentifier != ownPID && (only?.contains($0.processIdentifier) ?? true)
+            $0.activationPolicy == .regular && $0.processIdentifier != ownPID
+                && (only?.contains($0.processIdentifier) ?? true)
         }
         var perApp = [[WindowInfo]](repeating: [], count: apps.count)
         perApp.withUnsafeMutableBufferPointer { buf in
@@ -77,17 +83,23 @@ final class WindowProvider {
             guard (v[kAXRoleAttribute] as? String) == kAXWindowRole else { return nil }
             let sub = v[kAXSubroleAttribute] as? String
             guard sub == kAXStandardWindowSubrole || sub == kAXDialogSubrole else { return nil }
-            return WindowInfo(app: app, window: w, id: w.windowID, title: (v[kAXTitleAttribute] as? String) ?? "",
-                              minimized: (v[kAXMinimizedAttribute] as? NSNumber)?.boolValue ?? false)
+            return WindowInfo(
+                app: app, window: w, id: w.windowID, title: (v[kAXTitleAttribute] as? String) ?? "",
+                minimized: (v[kAXMinimizedAttribute] as? NSNumber)?.boolValue ?? false)
         }
     }
 
     /// Front-to-back order of on-screen windows. Window IDs need no Screen Recording permission.
     private static func zOrder() -> [CGWindowID: Int] {
-        guard let info = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else { return [:] }
+        guard
+            let info = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID)
+                as? [[String: Any]]
+        else { return [:] }
         var out: [CGWindowID: Int] = [:]
         for (i, d) in info.enumerated() {
-            if let n = d[kCGWindowNumber as String] as? CGWindowID, (d[kCGWindowLayer as String] as? Int) == 0 { out[n] = i }
+            if let n = d[kCGWindowNumber as String] as? CGWindowID, (d[kCGWindowLayer as String] as? Int) == 0 {
+                out[n] = i
+            }
         }
         return out
     }
@@ -153,12 +165,18 @@ enum WindowActions {
 /// `NSRunningApplication.activate` alone raises the app's key window, not the window we want,
 /// and macOS 14+ may ignore it entirely. Same technique as yabai (MIT) and AltTab.
 enum SkyLight {
-    private typealias SetFrontFn = @convention(c) (UnsafeMutablePointer<ProcessSerialNumber>, CGWindowID, UInt32) -> CGError
-    private typealias PostEventFn = @convention(c) (UnsafeMutablePointer<ProcessSerialNumber>, UnsafeMutablePointer<UInt8>) -> CGError
+    private typealias SetFrontFn =
+        @convention(c) (UnsafeMutablePointer<ProcessSerialNumber>, CGWindowID, UInt32) -> CGError
+    private typealias PostEventFn =
+        @convention(c) (UnsafeMutablePointer<ProcessSerialNumber>, UnsafeMutablePointer<UInt8>) -> CGError
 
     private static let handle = dlopen("/System/Library/PrivateFrameworks/SkyLight.framework/SkyLight", RTLD_LAZY)
-    private static let setFront: SetFrontFn? = dlsym(handle, "_SLPSSetFrontProcessWithOptions").map { unsafeBitCast($0, to: SetFrontFn.self) }
-    private static let postEvent: PostEventFn? = dlsym(handle, "SLPSPostEventRecordTo").map { unsafeBitCast($0, to: PostEventFn.self) }
+    private static let setFront: SetFrontFn? = dlsym(handle, "_SLPSSetFrontProcessWithOptions").map {
+        unsafeBitCast($0, to: SetFrontFn.self)
+    }
+    private static let postEvent: PostEventFn? = dlsym(handle, "SLPSPostEventRecordTo").map {
+        unsafeBitCast($0, to: PostEventFn.self)
+    }
 
     static func makeFront(pid: pid_t, windowID: CGWindowID) -> Bool {
         guard let setFront else { return false }

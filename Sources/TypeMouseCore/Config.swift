@@ -31,7 +31,9 @@ public struct Config: Codable, Equatable {
         /// Per-command overrides. An empty string clears the command's default hotkey.
         public var windowManagement: [String: String] = [:]
 
-        enum CodingKeys: String, CodingKey { case click, search, window, picker, missionControl, grid, scroll, windowManagement }
+        enum CodingKeys: String, CodingKey {
+            case click, search, window, picker, missionControl, grid, scroll, windowManagement
+        }
 
         public init() {}
 
@@ -74,11 +76,15 @@ public struct Config: Codable, Equatable {
                 return list.filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
             }
             // "" means no hotkey.
-            return try c.decodeIfPresent(String.self, forKey: key).map { $0.trimmingCharacters(in: .whitespaces).isEmpty ? [] : [$0] }
+            return try c.decodeIfPresent(String.self, forKey: key).map {
+                $0.trimmingCharacters(in: .whitespaces).isEmpty ? [] : [$0]
+            }
         }
 
         /// One hotkey stays a plain string, so simple files stay simple.
-        private static func encode(_ list: [String], _ c: inout KeyedEncodingContainer<CodingKeys>, _ key: CodingKeys) throws {
+        private static func encode(_ list: [String], _ c: inout KeyedEncodingContainer<CodingKeys>, _ key: CodingKeys)
+            throws
+        {
             if list.count == 1 { try c.encode(list[0], forKey: key) } else { try c.encode(list, forKey: key) }
         }
     }
@@ -157,7 +163,8 @@ public struct Config: Codable, Equatable {
         gridHand = try c.decodeIfPresent(GridNavigation.Hand.self, forKey: .gridHand) ?? d.gridHand
         scrollKeys = try c.decodeIfPresent(ScrollKeys.self, forKey: .scrollKeys) ?? d.scrollKeys
         scrollSpeed = min(5000, max(50, try c.decodeIfPresent(Int.self, forKey: .scrollSpeed) ?? d.scrollSpeed))
-        enhancedUserInterfaceApps = try c.decodeIfPresent([String].self, forKey: .enhancedUserInterfaceApps) ?? d.enhancedUserInterfaceApps
+        enhancedUserInterfaceApps =
+            try c.decodeIfPresent([String].self, forKey: .enhancedUserInterfaceApps) ?? d.enhancedUserInterfaceApps
     }
 
     public var hintAlphabet: [Character] { Hints.unique(Array(hintCharacters.lowercased())) }

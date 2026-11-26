@@ -22,12 +22,16 @@ enum ScrollAreas {
 
     static func collect(app: NSRunningApplication, config: Config, displays: [CGRect]) -> [Target] {
         let deadline = ProcessInfo.processInfo.systemUptime + 0.4
-        AccessibilityActivator.activate(app, enhanced: config.enhancedUserInterfaceApps.contains(app.bundleIdentifier ?? ""))
+        AccessibilityActivator.activate(
+            app, enhanced: config.enhancedUserInterfaceApps.contains(app.bundleIdentifier ?? ""))
         guard let window = AXUIElementCreateApplication(app.processIdentifier).element(kAXFocusedWindowAttribute),
-              let windowFrame = window.frame else { return [] }
+            let windowFrame = window.frame
+        else { return [] }
 
-        let attributes = [kAXRoleAttribute, kAXPositionAttribute, kAXSizeAttribute, kAXChildrenAttribute,
-                          kAXVerticalScrollBarAttribute, kAXHorizontalScrollBarAttribute, "AXHidden"]
+        let attributes = [
+            kAXRoleAttribute, kAXPositionAttribute, kAXSizeAttribute, kAXChildrenAttribute,
+            kAXVerticalScrollBarAttribute, kAXHorizontalScrollBarAttribute, "AXHidden",
+        ]
         var queue = [Node(element: window, clip: windowFrame)]
         var visited: Set<AXUIElement> = []
         var regions: [Region] = []
@@ -54,15 +58,18 @@ enum ScrollAreas {
             guard visited.insert(node.element).inserted else { continue }
             let values = node.element.values(attributes)
             guard let role = values[kAXRoleAttribute] as? String,
-                  (values["AXHidden"] as? NSNumber)?.boolValue != true else { continue }
+                (values["AXHidden"] as? NSNumber)?.boolValue != true
+            else { continue }
             let children = values[kAXChildrenAttribute] as? [AXUIElement] ?? []
-            let isScrollArea = role == kAXScrollAreaRole
+            let isScrollArea =
+                role == kAXScrollAreaRole
                 || values[kAXVerticalScrollBarAttribute] != nil || values[kAXHorizontalScrollBarAttribute] != nil
             let isWebArea = role == "AXWebArea"
             let inWebArea = node.inWebArea || isWebArea
             let frame = AX.frame(position: values[kAXPositionAttribute], size: values[kAXSizeAttribute])
             if let viewport = node.parentViewport, let frame,
-               ScrollViewport.hasOverflow(viewport: viewport, content: frame) {
+                ScrollViewport.hasOverflow(viewport: viewport, content: frame)
+            {
                 addFrame(viewport.intersection(node.clip), hasOverflow: true)
             }
             var childClip = node.clip
@@ -74,9 +81,10 @@ enum ScrollAreas {
 
             // Web content can expose a clipped container and its offscreen children without a scroll role.
             let viewport = inWebArea && webContainers.contains(role) ? frame : nil
-            queue.append(contentsOf: children.prefix(limit - queue.count).map {
-                Node(element: $0, clip: childClip, inWebArea: inWebArea, parentViewport: viewport)
-            })
+            queue.append(
+                contentsOf: children.prefix(limit - queue.count).map {
+                    Node(element: $0, clip: childClip, inWebArea: inWebArea, parentViewport: viewport)
+                })
         }
         return targets(in: regions)
     }

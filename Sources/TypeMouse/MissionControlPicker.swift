@@ -76,16 +76,25 @@ final class MissionControlPicker {
     }
 
     func handle(_ key: KeyEvent) {
-        if key.special == .escape { exit(); return }
+        if key.special == .escape {
+            exit()
+            return
+        }
         guard rendered, !key.isRepeat else { return }
         if key.special == .backspace {
-            if !typed.isEmpty { typed.removeLast(); render() }
+            if !typed.isEmpty {
+                typed.removeLast()
+                render()
+            }
             return
         }
         guard key.char.count == 1 else { return }
         let next = typed + key.char
         let hits = labels.indices.filter { labels[$0].hasPrefix(next) }
-        guard !hits.isEmpty else { NSSound.beep(); return }
+        guard !hits.isEmpty else {
+            NSSound.beep()
+            return
+        }
         if hits.count == 1, labels[hits[0]] == next {
             let thumbnail = thumbnails[hits[0]]
             let current = Self.snapshot()
@@ -150,12 +159,14 @@ final class MissionControlPicker {
         let hints = zip(thumbnails, labels).compactMap { thumbnail, label -> LabelSpec? in
             guard !label.isEmpty, label.hasPrefix(typed) else { return nil }
             let point = CGPoint(x: thumbnail.frame.midX, y: thumbnail.frame.midY)
-            let lines = thumbnail.title.isEmpty || thumbnail.title == thumbnail.name
+            let lines =
+                thumbnail.title.isEmpty || thumbnail.title == thumbnail.name
                 ? [thumbnail.name] : [thumbnail.name, thumbnail.title]
-            return LabelSpec(text: label, typedCount: typed.count,
-                             rect: CGRect(x: point.x - 1, y: point.y - 1, width: 2, height: 2), style: .normal,
-                             fontSize: WindowPicker.fontSize(for: label, in: thumbnail.frame),
-                             caption: .init(lines: lines, maxWidth: min(420, thumbnail.frame.width)))
+            return LabelSpec(
+                text: label, typedCount: typed.count,
+                rect: CGRect(x: point.x - 1, y: point.y - 1, width: 2, height: 2), style: .normal,
+                fontSize: WindowPicker.fontSize(for: label, in: thumbnail.frame),
+                caption: .init(lines: lines, maxWidth: min(420, thumbnail.frame.width)))
         }
         overlay.render(hints)
     }
@@ -165,8 +176,9 @@ final class MissionControlPicker {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.07) { [weak self] in
             guard let self, !self.capture.active else { return }
             guard let app = NSWorkspace.shared.frontmostApplication,
-                  (app.bundleIdentifier ?? app.localizedName ?? "") == target.appID,
-                  app.processIdentifier != ProcessInfo.processInfo.processIdentifier, Self.snapshot() == nil else {
+                (app.bundleIdentifier ?? app.localizedName ?? "") == target.appID,
+                app.processIdentifier != ProcessInfo.processInfo.processIdentifier, Self.snapshot() == nil
+            else {
                 self.finishSelection(target, attempts: attempts - 1)
                 return
             }
@@ -175,14 +187,16 @@ final class MissionControlPicker {
             let focused = application.element(kAXFocusedWindowAttribute)
             if let focused, target.windowID == nil || target.windowID == focused.windowID {
                 if self.config.clickAfterPicker {
-                    self.onPicked?(WindowInfo(app: app, window: focused, id: focused.windowID, title: "", minimized: false))
+                    self.onPicked?(
+                        WindowInfo(app: app, window: focused, id: focused.windowID, title: "", minimized: false))
                 }
                 return
             }
 
             // Mission Control can exit with another window of the same app in front.
             if attempts <= 8, let id = target.windowID,
-               let selected = application.elements(kAXWindowsAttribute).first(where: { $0.windowID == id }) {
+                let selected = application.elements(kAXWindowsAttribute).first(where: { $0.windowID == id })
+            {
                 let info = WindowInfo(app: app, window: selected, id: id, title: target.title, minimized: false)
                 WindowActions.focus(info)
                 if self.config.clickAfterPicker { self.onPicked?(info) }
@@ -198,41 +212,54 @@ final class MissionControlPicker {
             guard let app = NSRunningApplication.runningApplications(withBundleIdentifier: host).first else { continue }
             let children = AXUIElementCreateApplication(app.processIdentifier).elements(kAXChildrenAttribute)
             let root = children.first { $0.string("AXIdentifier") == "mc" }
-            let displays = (root?.elements(kAXChildrenAttribute) ?? children).filter { $0.string("AXIdentifier") == "mc.display" }
+            let displays = (root?.elements(kAXChildrenAttribute) ?? children).filter {
+                $0.string("AXIdentifier") == "mc.display"
+            }
             guard !displays.isEmpty else { continue }
             // WindowManager exposes buttons for other Spaces under the same display.
             // Quartz gives us the current Spaces across all displays, including covered windows.
-            let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements],
-                                                     kCGNullWindowID) as? [[String: Any]] ?? []
-            let onScreen = Dictionary(windows.compactMap { window -> (CGWindowID, pid_t)? in
-                guard let id = window[kCGWindowNumber as String] as? CGWindowID,
-                      let pid = window[kCGWindowOwnerPID as String] as? pid_t else { return nil }
-                return (id, pid)
-            }, uniquingKeysWith: { first, _ in first })
+            let windows =
+                CGWindowListCopyWindowInfo(
+                    [.optionOnScreenOnly, .excludeDesktopElements],
+                    kCGNullWindowID) as? [[String: Any]] ?? []
+            let onScreen = Dictionary(
+                windows.compactMap { window -> (CGWindowID, pid_t)? in
+                    guard let id = window[kCGWindowNumber as String] as? CGWindowID,
+                        let pid = window[kCGWindowOwnerPID as String] as? pid_t
+                    else { return nil }
+                    return (id, pid)
+                }, uniquingKeysWith: { first, _ in first })
             return displays.flatMap { display in
                 let children = display.elements(kAXChildrenAttribute)
                 let group = children.first { $0.string("AXIdentifier") == "mc.windows" }
                 return (group?.elements(kAXChildrenAttribute) ?? children).compactMap { button -> Thumbnail? in
-                    let values = button.values([kAXRoleAttribute, "AXIdentifier", "wid", kAXTitleAttribute,
-                                                kAXPositionAttribute, kAXSizeAttribute])
+                    let values = button.values([
+                        kAXRoleAttribute, "AXIdentifier", "wid", kAXTitleAttribute,
+                        kAXPositionAttribute, kAXSizeAttribute,
+                    ])
                     guard values[kAXRoleAttribute] as? String == kAXButtonRole,
-                          let frame = AX.frame(position: values[kAXPositionAttribute], size: values[kAXSizeAttribute]),
-                          frame.width > 0, frame.height > 0 else { return nil }
+                        let frame = AX.frame(position: values[kAXPositionAttribute], size: values[kAXSizeAttribute]),
+                        frame.width > 0, frame.height > 0
+                    else { return nil }
                     let identifier = values["AXIdentifier"] as? String ?? ""
                     guard !identifier.hasPrefix("mc.") else { return nil }
                     let windowID = (values["wid"] as? NSNumber)?.uint32Value
                     let ownerPID = windowID.flatMap { onScreen[$0] }
                     if host == "com.apple.WindowManager", ownerPID == nil { return nil }
                     let owner = ownerPID.flatMap { NSRunningApplication(processIdentifier: $0) }
-                    let bundle = identifier.range(of: ".space.", options: .backwards).map { String(identifier[..<$0.lowerBound]) }
+                    let bundle = identifier.range(of: ".space.", options: .backwards).map {
+                        String(identifier[..<$0.lowerBound])
+                    }
                     let appID = bundle ?? owner?.bundleIdentifier ?? identifier
                     let title = (values[kAXTitleAttribute] as? String ?? "")
                         .split(whereSeparator: \.isNewline).joined(separator: " ").trimmingCharacters(in: .whitespaces)
-                    let appName = NSRunningApplication.runningApplications(withBundleIdentifier: appID).first?.localizedName
+                    let appName =
+                        NSRunningApplication.runningApplications(withBundleIdentifier: appID).first?.localizedName
                         ?? owner?.localizedName
                     let name = appName ?? (title.isEmpty ? "Window" : title)
-                    return Thumbnail(button: button, windowID: windowID, appID: appID.isEmpty ? name : appID,
-                                     name: name, title: title, frame: frame)
+                    return Thumbnail(
+                        button: button, windowID: windowID, appID: appID.isEmpty ? name : appID,
+                        name: name, title: title, frame: frame)
                 }
             }
         }

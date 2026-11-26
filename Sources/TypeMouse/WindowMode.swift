@@ -11,7 +11,7 @@ import TypeMouseCore
 final class WindowMode {
     struct Row {
         let info: WindowInfo?
-        let launchBundleID: String?   // pinned app that is not running
+        let launchBundleID: String?  // pinned app that is not running
         let appName: String
         let icon: NSImage?
         let title: String
@@ -65,31 +65,60 @@ final class WindowMode {
         guard isActive else { return }
         isActive = false
         capture.setActive(false)
-        panels.forEach { $0.hide() }
+        for panel in panels { panel.hide() }
     }
 
     func handle(_ key: KeyEvent) {
         guard isActive else { return }
         switch key.special {
-        case .escape: exit(); return
-        case .enter: choose(highlightedRow()); return
-        case .down: moveHighlight(1); return
-        case .up: moveHighlight(-1); return
-        case .tab: moveHighlight(key.shift && !key.hyperHeld ? -1 : 1); return
-        case .backspace: backspace(); return
+        case .escape:
+            exit()
+            return
+        case .enter:
+            choose(highlightedRow())
+            return
+        case .down:
+            moveHighlight(1)
+            return
+        case .up:
+            moveHighlight(-1)
+            return
+        case .tab:
+            moveHighlight(key.shift && !key.hyperHeld ? -1 : 1)
+            return
+        case .backspace:
+            backspace()
+            return
         default: break
         }
         if key.command && !key.hyperHeld {
             commandKey(key.char)
             return
         }
-        if key.control && key.char == "n" { moveHighlight(1); return }
-        if key.control && key.char == "p" { moveHighlight(-1); return }
-        if key.special == .space && filter != nil { appendFilter(" "); return }
+        if key.control && key.char == "n" {
+            moveHighlight(1)
+            return
+        }
+        if key.control && key.char == "p" {
+            moveHighlight(-1)
+            return
+        }
+        if key.special == .space && filter != nil {
+            appendFilter(" ")
+            return
+        }
         guard !key.char.isEmpty else { return }
-        if key.char == "/" && filter == nil { filter = ""; typed = ""; refresh(); return }
+        if key.char == "/" && filter == nil {
+            filter = ""
+            typed = ""
+            refresh()
+            return
+        }
 
-        if filter != nil { appendFilter(key.char); return }
+        if filter != nil {
+            appendFilter(key.char)
+            return
+        }
 
         let next = typed + key.char
         let hits = rows.indices.filter { rows[$0].label.hasPrefix(next) && !rows[$0].label.isEmpty }
@@ -110,8 +139,10 @@ final class WindowMode {
 
     private func buildRows(_ windows: [WindowInfo]) -> [Row] {
         var rows: [Row] = windows.map { w in
-            Row(info: w, launchBundleID: nil, appName: w.appName, icon: w.app.icon,
-                title: w.title.isEmpty ? (w.minimized ? "(minimized)" : "—") : w.title + (w.minimized ? "  (minimized)" : ""),
+            Row(
+                info: w, launchBundleID: nil, appName: w.appName, icon: w.app.icon,
+                title: w.title.isEmpty
+                    ? (w.minimized ? "(minimized)" : "—") : w.title + (w.minimized ? "  (minimized)" : ""),
                 label: "")
         }
         // Pinned apps with no window: a row that activates (or launches) the app.
@@ -120,20 +151,25 @@ final class WindowMode {
             let running = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).first
             let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID)
             guard running != nil || url != nil else { continue }
-            let name = running?.localizedName ?? url.map { FileManager.default.displayName(atPath: $0.path) } ?? bundleID
+            let name =
+                running?.localizedName ?? url.map { FileManager.default.displayName(atPath: $0.path) } ?? bundleID
             let icon = running?.icon ?? url.map { NSWorkspace.shared.icon(forFile: $0.path) }
             if let running {
                 let info = WindowInfo(app: running, window: nil, id: nil, title: "", minimized: false)
-                rows.append(Row(info: info, launchBundleID: nil, appName: name, icon: icon, title: "(no windows)", label: ""))
+                rows.append(
+                    Row(info: info, launchBundleID: nil, appName: name, icon: icon, title: "(no windows)", label: ""))
             } else {
-                rows.append(Row(info: nil, launchBundleID: bundleID, appName: name, icon: icon, title: "launch", label: ""))
+                rows.append(
+                    Row(info: nil, launchBundleID: bundleID, appName: name, icon: icon, title: "launch", label: ""))
             }
         }
 
         // Same name-based labels as the window picker: Slack is "s", Slack and Safari are "sl" and "sa".
         // Rows without a window (apps to launch or activate) get a stand-in ID.
         let ids = rows.indices.map { rows[$0].info?.id ?? (UInt32.max - UInt32($0)) }
-        let items = rows.indices.map { PickerLabels.Item(windowID: ids[$0], appID: Self.appID(rows[$0]), appName: rows[$0].appName) }
+        let items = rows.indices.map {
+            PickerLabels.Item(windowID: ids[$0], appID: Self.appID(rows[$0]), appName: rows[$0].appName)
+        }
         let labels = PickerLabels.assign(items, pins: config.pins, windowKeys: config.hintAlphabet)
         for i in rows.indices { rows[i].label = labels[ids[i]] ?? "" }
         return rows
@@ -161,7 +197,7 @@ final class WindowMode {
     private func render() {
         let screens = NSScreen.screens
         if panels.count != screens.count || zip(panels, screens).contains(where: { $0.screen.frame != $1.frame }) {
-            panels.forEach { $0.hide() }
+            for panel in panels { panel.hide() }
             panels = screens.map { WindowPanel(screen: $0) }
         }
         let shown = visible.map { rows[$0] }
@@ -180,7 +216,12 @@ final class WindowMode {
 
     private func backspace() {
         if var f = filter {
-            if f.isEmpty { filter = nil } else { f.removeLast(); filter = f }
+            if f.isEmpty {
+                filter = nil
+            } else {
+                f.removeLast()
+                filter = f
+            }
         } else if !typed.isEmpty {
             typed.removeLast()
         }
@@ -239,8 +280,9 @@ final class WindowPanel {
 
     init(screen: NSScreen) {
         self.screen = screen
-        window = NSPanel(contentRect: CGRect(x: 0, y: 0, width: Self.width, height: 100),
-                         styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: true)
+        window = NSPanel(
+            contentRect: CGRect(x: 0, y: 0, width: Self.width, height: 100),
+            styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: true)
         window.isOpaque = false
         window.backgroundColor = .clear
         window.hasShadow = true
@@ -275,7 +317,7 @@ final class WindowPanel {
     }
 
     func show(rows: [WindowMode.Row], typed: String, filter: String?, highlight: Int) {
-        stack.arrangedSubviews.forEach { $0.removeFromSuperview() }
+        for view in stack.arrangedSubviews { view.removeFromSuperview() }
         let maxRows = 24
         let windowStart: Int
         if rows.count <= maxRows {
@@ -296,7 +338,8 @@ final class WindowPanel {
 
         for (offset, row) in displayed.enumerated() {
             let rowIndex = windowStart + offset
-            stack.addArrangedSubview(rowView(row, typed: filter == nil ? typed.count : 0, selected: rowIndex == highlight))
+            stack.addArrangedSubview(
+                rowView(row, typed: filter == nil ? typed.count : 0, selected: rowIndex == highlight))
         }
         if rows.isEmpty { stack.addArrangedSubview(NSTextField(labelWithString: "  no matches")) }
 
@@ -306,8 +349,9 @@ final class WindowPanel {
         let wasVisible = window.isVisible
         let f = screen.visibleFrame
         let top = f.maxY - f.height * 0.18
-        window.setFrame(CGRect(x: f.midX - Self.width / 2, y: top - height, width: Self.width, height: height),
-                        display: true, animate: false)
+        window.setFrame(
+            CGRect(x: f.midX - Self.width / 2, y: top - height, width: Self.width, height: height),
+            display: true, animate: false)
         guard !wasVisible else { return }
         // The only motion: a fast fade-in when the panel first appears.
         window.alphaValue = 0
@@ -323,14 +367,17 @@ final class WindowPanel {
     private func rowView(_ row: WindowMode.Row, typed: Int, selected: Bool) -> NSView {
         let label = NSTextField(labelWithString: "")
         let upper = row.label.uppercased()
-        let s = NSMutableAttributedString(string: upper, attributes: [
-            .font: NSFont.monospacedSystemFont(ofSize: 14, weight: .bold),
-            .foregroundColor: NSColor.black,
-        ])
+        let s = NSMutableAttributedString(
+            string: upper,
+            attributes: [
+                .font: NSFont.monospacedSystemFont(ofSize: 14, weight: .bold),
+                .foregroundColor: NSColor.black,
+            ])
         if typed > 0 {
             let typedUTF16 = (String(row.label.prefix(typed)).uppercased() as NSString).length
-            s.addAttribute(.foregroundColor, value: NSColor.black.withAlphaComponent(0.35),
-                           range: NSRange(location: 0, length: min(typedUTF16, s.length)))
+            s.addAttribute(
+                .foregroundColor, value: NSColor.black.withAlphaComponent(0.35),
+                range: NSRange(location: 0, length: min(typedUTF16, s.length)))
         }
         label.attributedStringValue = s
         label.alignment = .center
@@ -357,7 +404,9 @@ final class WindowPanel {
         h.edgeInsets = NSEdgeInsets(top: 0, left: 6, bottom: 0, right: 6)
         h.wantsLayer = true
         h.layer?.cornerRadius = 6
-        if selected { h.layer?.backgroundColor = NSColor.selectedContentBackgroundColor.withAlphaComponent(0.6).cgColor }
+        if selected {
+            h.layer?.backgroundColor = NSColor.selectedContentBackgroundColor.withAlphaComponent(0.6).cgColor
+        }
         NSLayoutConstraint.activate([
             label.widthAnchor.constraint(equalToConstant: 48),
             icon.widthAnchor.constraint(equalToConstant: 20),

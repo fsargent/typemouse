@@ -1,5 +1,6 @@
 import CoreGraphics
 import XCTest
+
 @testable import TypeMouseCore
 
 final class GridNavigationTests: XCTestCase {
@@ -11,7 +12,7 @@ final class GridNavigationTests: XCTestCase {
         XCTAssertFalse(grid.select("w"))
         XCTAssertTrue(grid.select("o"))
         XCTAssertEqual(grid.regions[0].frame, CGRect(x: 600, y: 0, width: 300, height: 300))
-        XCTAssertTrue(grid.select("x")) // Either hand works after choosing the display.
+        XCTAssertTrue(grid.select("x"))  // Either hand works after choosing the display.
         XCTAssertEqual(grid.point, CGPoint(x: 650, y: 250))
         XCTAssertEqual(grid.depth, 2)
         grid.back()
@@ -56,7 +57,7 @@ final class GridNavigationTests: XCTestCase {
         XCTAssertEqual(grid.regions[0].keys, Array("wersdfxcv"))
         XCTAssertTrue(grid.select("w"))
         XCTAssertEqual(grid.point, CGPoint(x: 650, y: 50))
-        XCTAssertTrue(grid.select(".")) // The other hand still works for refinement.
+        XCTAssertTrue(grid.select("."))  // The other hand still works for refinement.
     }
 
     func testEveryKeyMapsToItsRowAndColumn() {
@@ -104,14 +105,22 @@ final class GridNavigationTests: XCTestCase {
 final class ScrollingTests: XCTestCase {
     func testWebViewportWithRowsOutsideItsVisibleBounds() {
         let viewport = CGRect(x: 80, y: 500, width: 1816, height: 570)
-        XCTAssertTrue(ScrollViewport.hasOverflow(viewport: viewport,
-                                                 content: CGRect(x: 81, y: 1500, width: 1814, height: 30)))
-        XCTAssertTrue(ScrollViewport.hasOverflow(viewport: viewport,
-                                                 content: CGRect(x: 81, y: 100, width: 1814, height: 30)))
-        XCTAssertFalse(ScrollViewport.hasOverflow(viewport: viewport,
-                                                  content: CGRect(x: 81, y: 499, width: 1814, height: 30)))
-        XCTAssertFalse(ScrollViewport.hasOverflow(viewport: viewport,
-                                                  content: CGRect(x: 20, y: 1500, width: 30, height: 30)))
+        XCTAssertTrue(
+            ScrollViewport.hasOverflow(
+                viewport: viewport,
+                content: CGRect(x: 81, y: 1500, width: 1814, height: 30)))
+        XCTAssertTrue(
+            ScrollViewport.hasOverflow(
+                viewport: viewport,
+                content: CGRect(x: 81, y: 100, width: 1814, height: 30)))
+        XCTAssertFalse(
+            ScrollViewport.hasOverflow(
+                viewport: viewport,
+                content: CGRect(x: 81, y: 499, width: 1814, height: 30)))
+        XCTAssertFalse(
+            ScrollViewport.hasOverflow(
+                viewport: viewport,
+                content: CGRect(x: 20, y: 1500, width: 30, height: 30)))
     }
 
     func testAllLayoutsAndArrowKeys() {
@@ -142,7 +151,10 @@ final class ScrollingTests: XCTestCase {
         XCTAssertEqual(old.scrollKeys, .vim)
         XCTAssertEqual(old.scrollSpeed, 600)
         XCTAssertEqual(old.gridHand, .right)
-        let custom = try Config.decode(Data(#"{"hotkeys":{"grid":["hyper+g","hyper+h"]},"gridHand":"left","scrollKeys":"esdf","scrollSpeed":1250}"#.utf8))
+        let custom = try Config.decode(
+            Data(
+                #"{"hotkeys":{"grid":["hyper+g","hyper+h"]},"gridHand":"left","scrollKeys":"esdf","scrollSpeed":1250}"#
+                    .utf8))
         XCTAssertEqual(custom.hotkeys.grid, ["hyper+g", "hyper+h"])
         XCTAssertEqual(custom.gridHand, .left)
         XCTAssertEqual(custom.scrollKeys, .esdf)

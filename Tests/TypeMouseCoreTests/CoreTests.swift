@@ -1,5 +1,6 @@
 import CoreGraphics
 import XCTest
+
 @testable import TypeMouseCore
 
 final class HintsTests: XCTestCase {
@@ -94,9 +95,11 @@ final class GeometryTests: XCTestCase {
     }
 
     func testReadingOrder() {
-        let rects = [CGRect(x: 200, y: 100, width: 1, height: 1),
-                     CGRect(x: 10, y: 103, width: 1, height: 1),
-                     CGRect(x: 50, y: 10, width: 1, height: 1)]
+        let rects = [
+            CGRect(x: 200, y: 100, width: 1, height: 1),
+            CGRect(x: 10, y: 103, width: 1, height: 1),
+            CGRect(x: 50, y: 10, width: 1, height: 1),
+        ]
         let sorted = rects.sorted { Geometry.readingOrder($0, $1) }
         XCTAssertEqual(sorted.map(\.minX), [50, 10, 200])
     }
@@ -157,7 +160,8 @@ final class HotkeyAndConfigTests: XCTestCase {
         XCTAssertEqual(try Config.decode(cleared.encoded()), cleared)
     }
     func testChangingAndRemovingWindowPinsPreservesOtherApps() throws {
-        var config = try Config.decode(Data(#"{"windowPins":{"S":"com.example.slack","b":"com.example.browser"}}"#.utf8))
+        var config = try Config.decode(
+            Data(#"{"windowPins":{"S":"com.example.slack","b":"com.example.browser"}}"#.utf8))
         XCTAssertFalse(config.availableWindowPinLetters.contains("s"))
         XCTAssertTrue(config.setWindowPin("L", for: "com.example.slack"))
         XCTAssertEqual(config.windowPins, ["l": "com.example.slack", "b": "com.example.browser"])
@@ -217,7 +221,7 @@ final class HotkeyAndConfigTests: XCTestCase {
         let c = try Config.decode(Data(#"{"hotkeys": {"click": [], "picker": ""}}"#.utf8))
         XCTAssertEqual(c.hotkeys.click, [])
         XCTAssertEqual(c.hotkeys.picker, [])
-        XCTAssertEqual(c.hotkeys.window, ["hyper+l"]) // missing key: default
+        XCTAssertEqual(c.hotkeys.window, ["hyper+l"])  // missing key: default
         XCTAssertEqual(try Config.decode(c.encoded()).hotkeys, c.hotkeys)
     }
 
@@ -323,8 +327,10 @@ final class HotkeyFormattingTests: XCTestCase {
     }
 
     func testAliasesWriteCanonicalNames() {
-        XCTAssertEqual(HotkeySpec.configString(keyCode: HotkeySpec("hyper+delete")!.keyCode, modifiers: .hyper), "hyper+backspace")
-        XCTAssertEqual(HotkeySpec.configString(keyCode: HotkeySpec("cmd+enter")!.keyCode, modifiers: .command), "cmd+return")
+        XCTAssertEqual(
+            HotkeySpec.configString(keyCode: HotkeySpec("hyper+delete")!.keyCode, modifiers: .hyper), "hyper+backspace")
+        XCTAssertEqual(
+            HotkeySpec.configString(keyCode: HotkeySpec("cmd+enter")!.keyCode, modifiers: .command), "cmd+return")
     }
 
     func testUnknownKeyCode() {
@@ -366,23 +372,26 @@ final class PickerLabelsTests: XCTestCase {
     }
 
     func testPinsOverrideTheFirstLetter() {
-        let r = PickerLabels.assign([item(1, "Google Chrome"), item(2, "Ghostty")],
-                                    pins: ["c": "google chrome"], windowKeys: keys)
+        let r = PickerLabels.assign(
+            [item(1, "Google Chrome"), item(2, "Ghostty")],
+            pins: ["c": "google chrome"], windowKeys: keys)
         XCTAssertEqual(r, [1: "c", 2: "g"])
     }
 
     func testPinnedLetterBelongsToThePinnedApp() {
-        let r = PickerLabels.assign([item(1, "Google Chrome"), item(2, "Cursor"), item(3, "Calendar")],
-                                    pins: ["c": "google chrome"], windowKeys: keys)
+        let r = PickerLabels.assign(
+            [item(1, "Google Chrome"), item(2, "Cursor"), item(3, "Calendar")],
+            pins: ["c": "google chrome"], windowKeys: keys)
         XCTAssertEqual(r[1], "c")
-        XCTAssertEqual(r[2], "u") // Cursor skips the pinned c
-        XCTAssertEqual(r[3], "a") // Calendar skips the pinned c
+        XCTAssertEqual(r[2], "u")  // Cursor skips the pinned c
+        XCTAssertEqual(r[3], "a")  // Calendar skips the pinned c
     }
 
     func testMovedAppContinuesFromItsNewLetter() {
         // Cursor and Ulysses share "u" once "c" is pinned. Cursor continues with "r", not "u".
-        let r = PickerLabels.assign([item(1, "Google Chrome"), item(2, "Cursor"), item(3, "Ulysses")],
-                                    pins: ["c": "google chrome"], windowKeys: keys)
+        let r = PickerLabels.assign(
+            [item(1, "Google Chrome"), item(2, "Cursor"), item(3, "Ulysses")],
+            pins: ["c": "google chrome"], windowKeys: keys)
         XCTAssertEqual(r[2], "ur")
         XCTAssertEqual(r[3], "ul")
     }
@@ -404,7 +413,10 @@ final class PickerLabelsTests: XCTestCase {
     }
 
     func testAlwaysPrefixFree() {
-        let names = ["Slack", "Safari", "Signal", "Spotify", "Chrome", "Chrome", "Calendar", "Code", "Ghostty", "Mail", "Messages"]
+        let names = [
+            "Slack", "Safari", "Signal", "Spotify", "Chrome", "Chrome", "Calendar", "Code", "Ghostty", "Mail",
+            "Messages",
+        ]
         let items = names.enumerated().map { item(UInt32($0.offset + 1), $0.element) }
         let labels = Array(PickerLabels.assign(items, windowKeys: keys).values)
         XCTAssertEqual(labels.count, items.count)
@@ -462,40 +474,50 @@ final class SpreadAndWeakTests: XCTestCase {
     }
 
     func testSpreadVariesTheFirstCharacter() {
-        let labels = Hints.generate(count: 81, alphabet: home) // all two-letter
+        let labels = Hints.generate(count: 81, alphabet: home)  // all two-letter
         let spread = Hints.spread(labels, alphabet: home)
         XCTAssertEqual(Array(spread.prefix(3)), ["ff", "jf", "df"])
         XCTAssertEqual(Set(spread.prefix(9).map(\.first!)).count, 9)
     }
 
     func testIconInsideAButtonIsDropped() {
-        let items = [LabelPriority.Candidate(frame: CGRect(x: 0, y: 0, width: 100, height: 30), role: "AXButton"),
-                     LabelPriority.Candidate(frame: CGRect(x: 5, y: 5, width: 16, height: 16), role: "AXImage")]
+        let items = [
+            LabelPriority.Candidate(frame: CGRect(x: 0, y: 0, width: 100, height: 30), role: "AXButton"),
+            LabelPriority.Candidate(frame: CGRect(x: 5, y: 5, width: 16, height: 16), role: "AXImage"),
+        ]
         XCTAssertEqual(LabelPriority.removeWeakDuplicates(items), [0])
     }
 
     func testCardAroundItsLinkIsDropped() {
-        let items = [LabelPriority.Candidate(frame: CGRect(x: 0, y: 0, width: 300, height: 60), role: "AXGroup"),
-                     LabelPriority.Candidate(frame: CGRect(x: 10, y: 10, width: 260, height: 40), role: "AXLink")]
+        let items = [
+            LabelPriority.Candidate(frame: CGRect(x: 0, y: 0, width: 300, height: 60), role: "AXGroup"),
+            LabelPriority.Candidate(frame: CGRect(x: 10, y: 10, width: 260, height: 40), role: "AXLink"),
+        ]
         XCTAssertEqual(LabelPriority.removeWeakDuplicates(items), [1])
     }
 
     func testLargeAreaWithASmallButtonStays() {
         // A big clickable row with a small button in a corner: both stay.
-        let items = [LabelPriority.Candidate(frame: CGRect(x: 0, y: 0, width: 600, height: 80), role: "AXGroup"),
-                     LabelPriority.Candidate(frame: CGRect(x: 560, y: 20, width: 30, height: 30), role: "AXButton")]
+        let items = [
+            LabelPriority.Candidate(frame: CGRect(x: 0, y: 0, width: 600, height: 80), role: "AXGroup"),
+            LabelPriority.Candidate(frame: CGRect(x: 560, y: 20, width: 30, height: 30), role: "AXButton"),
+        ]
         XCTAssertEqual(LabelPriority.removeWeakDuplicates(items), [0, 1])
     }
 
     func testStrongTargetsAreNeverDropped() {
-        let items = [LabelPriority.Candidate(frame: CGRect(x: 0, y: 0, width: 100, height: 30), role: "AXButton"),
-                     LabelPriority.Candidate(frame: CGRect(x: 5, y: 5, width: 20, height: 20), role: "AXLink")]
+        let items = [
+            LabelPriority.Candidate(frame: CGRect(x: 0, y: 0, width: 100, height: 30), role: "AXButton"),
+            LabelPriority.Candidate(frame: CGRect(x: 5, y: 5, width: 20, height: 20), role: "AXLink"),
+        ]
         XCTAssertEqual(LabelPriority.removeWeakDuplicates(items), [0, 1])
     }
 }
 
 final class CapsLockMappingTests: XCTestCase {
-    let other: [String: UInt64] = [CapsLockMapping.sourceKey: 0x7_0000_0064, CapsLockMapping.destinationKey: 0x7_0000_0035]
+    let other: [String: UInt64] = [
+        CapsLockMapping.sourceKey: 0x7_0000_0064, CapsLockMapping.destinationKey: 0x7_0000_0035,
+    ]
 
     func testAddKeepsOtherRemaps() {
         let r = CapsLockMapping.adding(to: [other])
@@ -510,8 +532,10 @@ final class CapsLockMappingTests: XCTestCase {
     }
 
     func testAddReplacesAnOlderCapsLockRemap() {
-        let capsToControl: [String: UInt64] = [CapsLockMapping.sourceKey: CapsLockMapping.capsLock,
-                                               CapsLockMapping.destinationKey: 0x7_0000_00E0]
+        let capsToControl: [String: UInt64] = [
+            CapsLockMapping.sourceKey: CapsLockMapping.capsLock,
+            CapsLockMapping.destinationKey: 0x7_0000_00E0,
+        ]
         XCTAssertEqual(CapsLockMapping.adding(to: [capsToControl]).count, 1)
     }
 
@@ -525,4 +549,3 @@ final class CapsLockMappingTests: XCTestCase {
         XCTAssertTrue(try Config.decode(Data(#"{"capsLockToHyper": true}"#.utf8)).capsLockToHyper)
     }
 }
-

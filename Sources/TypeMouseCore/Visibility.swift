@@ -25,7 +25,9 @@ public enum Visibility {
     ///   - grid: cells per side. Higher finds smaller visible slivers.
     ///   - minimumFraction: windows with a smaller visible share get no label.
     /// - Returns: window id -> placement, for windows that show.
-    public static func placements(_ windows: [Window], grid: Int = 24, minimumFraction: Double = 0.02) -> [UInt32: Placement] {
+    public static func placements(_ windows: [Window], grid: Int = 24, minimumFraction: Double = 0.02) -> [UInt32:
+        Placement]
+    {
         var result: [UInt32: Placement] = [:]
         for (i, w) in windows.enumerated() where w.frame.width > 0 && w.frame.height > 0 {
             let above = windows[..<i].map(\.frame).filter { $0.intersects(w.frame) }
@@ -37,7 +39,8 @@ public enum Visibility {
             var count = 0
             for row in 0..<grid {
                 for col in 0..<grid {
-                    let p = CGPoint(x: w.frame.minX + (CGFloat(col) + 0.5) * cw, y: w.frame.minY + (CGFloat(row) + 0.5) * ch)
+                    let p = CGPoint(
+                        x: w.frame.minX + (CGFloat(col) + 0.5) * cw, y: w.frame.minY + (CGFloat(row) + 0.5) * ch)
                     if !above.contains(where: { $0.contains(p) }) {
                         visible[row][col] = true
                         count += 1
@@ -45,18 +48,22 @@ public enum Visibility {
                 }
             }
             guard Double(count) / Double(grid * grid) >= minimumFraction,
-                  let cells = largestRectangle(visible) else { continue }
-            let area = CGRect(x: w.frame.minX + CGFloat(cells.minCol) * cw,
-                              y: w.frame.minY + CGFloat(cells.minRow) * ch,
-                              width: CGFloat(cells.maxCol - cells.minCol + 1) * cw,
-                              height: CGFloat(cells.maxRow - cells.minRow + 1) * ch)
+                let cells = largestRectangle(visible)
+            else { continue }
+            let area = CGRect(
+                x: w.frame.minX + CGFloat(cells.minCol) * cw,
+                y: w.frame.minY + CGFloat(cells.minRow) * ch,
+                width: CGFloat(cells.maxCol - cells.minCol + 1) * cw,
+                height: CGFloat(cells.maxRow - cells.minRow + 1) * ch)
             result[w.id] = Placement(point: CGPoint(x: area.midX, y: area.midY), area: area)
         }
         return result
     }
 
     /// Compatibility wrapper: label points only.
-    public static func labelPoints(_ windows: [Window], grid: Int = 24, minimumFraction: Double = 0.02) -> [UInt32: CGPoint] {
+    public static func labelPoints(_ windows: [Window], grid: Int = 24, minimumFraction: Double = 0.02) -> [UInt32:
+        CGPoint]
+    {
         placements(windows, grid: grid, minimumFraction: minimumFraction).mapValues(\.point)
     }
 
