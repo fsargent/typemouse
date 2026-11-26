@@ -347,7 +347,6 @@ If a hotkey does nothing, another app can own it. macOS does not report a confli
 
 - Window mode shows windows on the current Space only, plus minimized windows and windows of hidden apps.
 - Secure Input (password fields) blocks key capture.
-- Scroll mode is not part of TypeMouse.
 
 ## Contribute
 

@@ -2,7 +2,7 @@
 public enum Hints {
     /// Returns `count` labels built from `alphabet`. No label is a prefix of another,
     /// and the labels are as short as possible. Shorter labels come first, so give
-    /// them to the targets you want cheapest to reach (we use reading order).
+    /// them to the targets you want cheapest to reach (controls first, then reading order).
     public static func generate(count: Int, alphabet: [Character]) -> [String] {
         guard count > 0 else { return [] }
         let alphabet = unique(alphabet)

@@ -14,23 +14,56 @@ final class HyperKey {
     private var thread: Thread?
     private let lock = NSLock()
     private var held = false
-    private(set) var isEnabled = false
+    private var _isEnabled = false
+    private var sleepObserver: NSObjectProtocol?
+
+    var isEnabled: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return _isEnabled
+    }
 
     static let hyperFlags: CGEventFlags = [.maskCommand, .maskControl, .maskAlternate, .maskShift]
+
+    init() {
+        sleepObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.willSleepNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            self?.resetHeld()
+        }
+    }
+
+    deinit {
+        if let sleepObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(sleepObserver)
+        }
+    }
 
     func setEnabled(_ on: Bool) {
         guard on != isEnabled else { return }
         if on {
             guard startTap() else { Log.info("caps lock to hyper: event tap failed"); return }
             Self.updateRemap(add: true)
-            isEnabled = true
+            lock.lock()
+            _isEnabled = true
+            held = false
+            lock.unlock()
             Log.info("caps lock to hyper: on")
         } else {
             Self.updateRemap(add: false)
+            lock.lock()
+            _isEnabled = false
+            held = false
+            lock.unlock()
             if let tap { CGEvent.tapEnable(tap: tap, enable: false) }
-            isEnabled = false
             Log.info("caps lock to hyper: off")
         }
+    }
+
+    private func resetHeld() {
+        lock.lock()
+        held = false
+        lock.unlock()
     }
 
     // MARK: - Remap
@@ -75,6 +108,7 @@ final class HyperKey {
 
     fileprivate func handle(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+            resetHeld()
             if isEnabled, let tap { CGEvent.tapEnable(tap: tap, enable: true) }
             return Unmanaged.passUnretained(event)
         }

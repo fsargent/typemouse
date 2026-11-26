@@ -276,20 +276,31 @@ final class WindowPanel {
 
     func show(rows: [WindowMode.Row], typed: String, filter: String?, highlight: Int) {
         stack.arrangedSubviews.forEach { $0.removeFromSuperview() }
-        if let filter {
-            header.stringValue = "/ \(filter)▏"
+        let maxRows = 24
+        let windowStart: Int
+        if rows.count <= maxRows {
+            windowStart = 0
         } else {
-            header.stringValue = typed.isEmpty ? "type a label · / to search · ⏎ focus · ⌘W ⌘M ⌘H ⌘Q" : "› \(typed.uppercased())"
+            windowStart = min(max(0, highlight - maxRows + 1), rows.count - maxRows)
+        }
+        let windowEnd = min(rows.count, windowStart + maxRows)
+        let displayed = Array(rows[windowStart..<windowEnd])
+        let rangeNote = rows.count > maxRows ? "  (\(windowStart + 1)–\(windowEnd) of \(rows.count))" : ""
+        if let filter {
+            header.stringValue = "/ \(filter)▏\(rangeNote)"
+        } else {
+            let base = typed.isEmpty ? "type a label · / to search · ⏎ focus · ⌘W ⌘M ⌘H ⌘Q" : "› \(typed.uppercased())"
+            header.stringValue = base + rangeNote
         }
         stack.addArrangedSubview(header)
 
-        let maxRows = 24
-        for (n, row) in rows.prefix(maxRows).enumerated() {
-            stack.addArrangedSubview(rowView(row, typed: filter == nil ? typed.count : 0, selected: n == highlight))
+        for (offset, row) in displayed.enumerated() {
+            let rowIndex = windowStart + offset
+            stack.addArrangedSubview(rowView(row, typed: filter == nil ? typed.count : 0, selected: rowIndex == highlight))
         }
         if rows.isEmpty { stack.addArrangedSubview(NSTextField(labelWithString: "  no matches")) }
 
-        let shown = CGFloat(min(rows.count, maxRows))
+        let shown = CGFloat(displayed.count)
         let height = 20 + 22 + max(1, shown) * (Self.rowHeight + 2)
         // Pin the top edge, so rows stay in place when the list grows or shrinks.
         let wasVisible = window.isVisible
@@ -311,13 +322,15 @@ final class WindowPanel {
 
     private func rowView(_ row: WindowMode.Row, typed: Int, selected: Bool) -> NSView {
         let label = NSTextField(labelWithString: "")
-        let s = NSMutableAttributedString(string: row.label.uppercased(), attributes: [
+        let upper = row.label.uppercased()
+        let s = NSMutableAttributedString(string: upper, attributes: [
             .font: NSFont.monospacedSystemFont(ofSize: 14, weight: .bold),
-            .foregroundColor: NSColor.labelColor,
+            .foregroundColor: NSColor.black,
         ])
         if typed > 0 {
-            s.addAttribute(.foregroundColor, value: NSColor.tertiaryLabelColor,
-                           range: NSRange(location: 0, length: min(typed, row.label.count)))
+            let typedUTF16 = (String(row.label.prefix(typed)).uppercased() as NSString).length
+            s.addAttribute(.foregroundColor, value: NSColor.black.withAlphaComponent(0.35),
+                           range: NSRange(location: 0, length: min(typedUTF16, s.length)))
         }
         label.attributedStringValue = s
         label.alignment = .center

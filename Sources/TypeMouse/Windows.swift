@@ -30,8 +30,9 @@ final class WindowProvider {
             self?.noteFocusedWindow(of: app.processIdentifier)
         }
         nc.addObserver(forName: NSWorkspace.didTerminateApplicationNotification, object: nil, queue: .main) { [weak self] n in
-            guard let app = n.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication else { return }
-            self?.observers[app.processIdentifier] = nil
+            guard let app = n.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
+                  let obs = self?.observers.removeValue(forKey: app.processIdentifier) else { return }
+            CFRunLoopRemoveSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(obs), .defaultMode)
         }
         for app in NSWorkspace.shared.runningApplications where app.activationPolicy == .regular { observe(app) }
     }

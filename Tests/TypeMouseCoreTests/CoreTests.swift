@@ -230,6 +230,13 @@ final class HotkeyAndConfigTests: XCTestCase {
         XCTAssertEqual(Config().chainDelayMs, 250)
         XCTAssertEqual(try Config.decode(Data(#"{"chainDelayMs": 1200}"#.utf8)).chainDelayMs, 1200)
         XCTAssertEqual(try Config.decode(Data(#"{"chainDelayMs": -5}"#.utf8)).chainDelayMs, 0)
+        XCTAssertEqual(try Config.decode(Data(#"{"chainDelayMs": 99999}"#.utf8)).chainDelayMs, 5000)
+    }
+
+    func testLabelFontSizeClampsOnDecode() throws {
+        XCTAssertEqual(try Config.decode(Data(#"{"labelFontSize": 2}"#.utf8)).labelFontSize, 8)
+        XCTAssertEqual(try Config.decode(Data(#"{"labelFontSize": 200}"#.utf8)).labelFontSize, 48)
+        XCTAssertEqual(try Config.decode(Data(#"{"labelFontSize": 18}"#.utf8)).labelFontSize, 18)
     }
 
     func testClickAfterPickerDefaultsOn() throws {
